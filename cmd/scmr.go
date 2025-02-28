@@ -15,7 +15,7 @@ func scmrCmdInit() {
 	scmrCmd.PersistentFlags().StringVarP(&executablePath, "executable-path", "e", "", "Full path to remote Windows executable")
 	scmrCmd.PersistentFlags().StringVarP(&executableArgs, "args", "a", "", "Arguments to pass to executable")
 	scmrCmd.PersistentFlags().StringVarP(&scmrName, "service", "s", "", "Name of service to create or modify")
-	scmrCmd.PersistentFlags().StringVarP(&scmrDisplayName, "display-name", "n", "", "Service display name")
+	scmrCmd.PersistentFlags().BoolVar(&scmrNoStart, "no-start", false, "Don't start service after execution")
 
 	scmrCmd.MarkPersistentFlagRequired("executable-path")
 	scmrCmd.MarkPersistentFlagRequired("service")
@@ -27,11 +27,11 @@ func scmrCmdInit() {
 }
 
 func scmrChangeCmdInit() {
-	scmrChangeCmd.Flags().BoolVar(&scmrNoStart, "no-start", false, "Don't start service")
+	// no unique flags
 }
 
 func scmrCreateCmdInit() {
-	scmrChangeCmd.Flags().StringVarP(&scmrDisplayName, "display-name", "n", "", "Display name of service to create")
+	scmrCreateCmd.Flags().StringVarP(&scmrDisplayName, "display-name", "n", "", "Display name new service")
 	scmrCreateCmd.Flags().BoolVar(&scmrNoDelete, "no-delete", false, "Don't delete service after execution")
 }
 
