@@ -91,6 +91,8 @@ func (mod *Module) Exec(ctx context.Context, creds *adauth.Credential, target *a
 
 		} else {
 			startTime := time.Now().UTC().Add(cfg.StartDelay)
+			stopTime := startTime.Add(cfg.StopDelay)
+
 			task := &task{
 				TaskVersion:   "1.2",                                                   // static
 				TaskNamespace: "http://schemas.microsoft.com/windows/2004/02/mit/task", // static
@@ -102,16 +104,21 @@ func (mod *Module) Exec(ctx context.Context, creds *adauth.Credential, target *a
 				},
 				Principals: defaultPrincipals,
 				Settings:   defaultSettings,
-				Actions:    actions{Context: defaultPrincipals.Principals[0].ID, Exec: []actionExec{{Command: ecfg.ExecutableName, Arguments: ecfg.ExecutableArgs}}},
+				Actions: actions{
+					Context: defaultPrincipals.Principals[0].ID,
+					Exec: []actionExec{
+						{
+							Command:   ecfg.ExecutableName,
+							Arguments: ecfg.ExecutableArgs,
+						},
+					},
+				},
 			}
 			if !cfg.NoDelete && !cfg.CallDelete {
 				if cfg.StopDelay == 0 {
 					// EndBoundary cannot be >= StartBoundary
 					cfg.StopDelay = 1 * time.Second
 				}
-				stopTime := startTime.Add(cfg.StopDelay)
-
-				mod.log.Info().Time("when", stopTime).Msg("Task is scheduled to delete")
 				task.Settings.DeleteExpiredTaskAfter = xmlDuration(cfg.DeleteDelay)
 				task.TimeTriggers[0].EndBoundary = stopTime.Format(TaskXMLDurationFormat)
 			}
@@ -157,25 +164,29 @@ func (mod *Module) Exec(ctx context.Context, creds *adauth.Credential, target *a
 				} else {
 					mod.log.Info().Str("path", response.ActualPath).Msg("Task registered successfully")
 
-					if !cfg.NoDelete && cfg.CallDelete {
-						defer func() {
-							if err = mod.Cleanup(ctx, creds, target, &exec.CleanupConfig{
-								CleanupMethod:       MethodDelete,
-								CleanupMethodConfig: MethodDeleteConfig{TaskPath: taskPath},
-							}); err != nil {
-								mod.log.Error().Err(err).Msg("Failed to delete task")
+					if !cfg.NoDelete {
+						if cfg.CallDelete {
+							defer func() {
+								if err = mod.Cleanup(ctx, creds, target, &exec.CleanupConfig{
+									CleanupMethod:       MethodDelete,
+									CleanupMethodConfig: MethodDeleteConfig{TaskPath: taskPath},
+								}); err != nil {
+									mod.log.Error().Err(err).Msg("Failed to delete task")
+								}
+							}()
+							mod.log.Info().Dur("ms", cfg.StartDelay).Msg("Waiting for task to run")
+							select {
+							case <-ctx.Done():
+								mod.log.Warn().Msg("Cancelling execution")
+								return err
+							case <-time.After(cfg.StartDelay + (time.Second * 2)): // + two seconds
+								// TODO: check if task is running yet; delete if the wait period is over
+								break
 							}
-						}()
-						mod.log.Info().Dur("ms", cfg.StartDelay).Msg("Waiting for task to run")
-						select {
-						case <-ctx.Done():
-							mod.log.Warn().Msg("Cancelling execution")
 							return err
-						case <-time.After(cfg.StartDelay + (time.Second * 2)): // + two seconds
-							// TODO: check if task is running yet; delete if the wait period is over
-							break
+						} else {
+							mod.log.Info().Time("when", stopTime).Msg("Task is scheduled to delete")
 						}
-						return err
 					}
 				}
 			}

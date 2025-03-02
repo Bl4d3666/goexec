@@ -66,8 +66,20 @@ var (
 	}
 	tschRegisterCmd = &cobra.Command{
 		Use:   "register [target]",
-		Short: "Register a scheduled task with an automatic start time",
-		Args:  needsTarget,
+		Short: "Register a remote scheduled task with an automatic start time",
+		Long: `Description:
+  The register method calls SchRpcRegisterTask to register a scheduled task
+  with an automatic start time.This method avoids directly calling SchRpcRun,
+  and can even avoid calling SchRpcDelete by populating the DeleteExpiredTaskAfter
+  Setting.
+
+References:
+  SchRpcRegisterTask - https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/849c131a-64e4-46ef-b015-9d4c599c5167
+  SchRpcRun - https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/77f2250d-500a-40ee-be18-c82f7079c4f0
+  SchRpcDelete - https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/360bb9b1-dd2a-4b36-83ee-21f12cb97cff
+  DeleteExpiredTaskAfter - https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/6bfde6fe-440e-4ddd-b4d6-c8fc0bc06fae
+`,
+		Args: needsTarget,
 		Run: func(cmd *cobra.Command, args []string) {
 			if tschNoDelete {
 				log.Warn().Msg("Task will not be deleted after execution")
@@ -94,8 +106,17 @@ var (
 	}
 	tschDemandCmd = &cobra.Command{
 		Use:   "demand [target]",
-		Short: "Register a scheduled task and demand immediate start",
-		Args:  needsTarget,
+		Short: "Register a remote scheduled task and demand immediate start",
+		Long: `Description:
+  Similar to the register method, the demand method will call SchRpcRegisterTask,
+  But rather than setting a defined time when the task will start, it will
+  additionally call SchRpcRun to forcefully start the task.
+
+References:
+  SchRpcRegisterTask - https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/849c131a-64e4-46ef-b015-9d4c599c5167
+  SchRpcRun - https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/77f2250d-500a-40ee-be18-c82f7079c4f0
+`,
+		Args: needsTarget,
 		Run: func(cmd *cobra.Command, args []string) {
 			if tschNoDelete {
 				log.Warn().Msg("Task will not be deleted after execution")
@@ -118,8 +139,14 @@ var (
 	}
 	tschDeleteCmd = &cobra.Command{
 		Use:   "delete [target]",
-		Short: "Delete a scheduled task",
-		Args:  needsTarget,
+		Short: "Manually delete a scheduled task",
+		Long: `Description:
+  The delete method manually deletes a scheduled task by calling SchRpcDelete
+
+References:
+  SchRpcDelete - https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/360bb9b1-dd2a-4b36-83ee-21f12cb97cff
+`,
+		Args: needsTarget,
 		Run: func(cmd *cobra.Command, args []string) {
 			module := tschexec.Module{}
 			cleanCfg := &exec.CleanupConfig{
