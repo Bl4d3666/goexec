@@ -1,13 +1,13 @@
 package scmrexec
 
 import (
+	"github.com/FalconOpsLLC/goexec/pkg/client/dcerpc"
 	"github.com/bryanmcnulty/adauth"
 	"github.com/oiweiwei/go-msrpc/msrpc/scmr/svcctl/v2"
 	"github.com/rs/zerolog"
-	"github.com/FalconOpsLLC/goexec/pkg/client/dcerpc"
 )
 
-type Executor struct {
+type Module struct {
 	creds    *adauth.Credential
 	target   *adauth.Target
 	hostname string

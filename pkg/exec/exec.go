@@ -5,6 +5,11 @@ import (
 	"github.com/bryanmcnulty/adauth"
 )
 
+type CleanupConfig struct {
+	CleanupMethod       string
+	CleanupMethodConfig interface{}
+}
+
 type ExecutionConfig struct {
 	ExecutableName string // ExecutableName represents the name of the executable; i.e. "notepad.exe", "calc"
 	ExecutablePath string // ExecutablePath represents the full path to the executable; i.e. `C:\Windows\explorer.exe`
@@ -21,9 +26,10 @@ type ShellConfig struct {
 	ShellPath string // ShellPath is the full Windows path to the shell executable; i.e. `C:\Windows\System32\cmd.exe`
 }
 
-type Executor interface {
+type Module interface {
 	// Exec performs a single execution task without the need to call Init.
-	Exec(ctx context.Context, creds *adauth.Credential, target *adauth.Target, config *ExecutionConfig)
+	Exec(context.Context, *adauth.Credential, *adauth.Target, *ExecutionConfig) error
+	Cleanup(context.Context, *adauth.Credential, *adauth.Target, *CleanupConfig) error
 
 	// Init assigns the provided TODO
 	//Init(ctx context.Context, creds *adauth.Credential, target *adauth.Target)

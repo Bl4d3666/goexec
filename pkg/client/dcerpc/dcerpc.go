@@ -65,6 +65,10 @@ func (client *DCEClient) OpenSvcctl(ctx context.Context) (ctl svcctl.SvcctlClien
 	return
 }
 
+func (client *DCEClient) DCE() dcerpc.Conn {
+	return client.conn
+}
+
 func (client *DCEClient) Connect(ctx context.Context, creds *adauth.Credential, target *adauth.Target, dialOpts ...dcerpc.Option) (err error) {
 	if creds != nil && target != nil {
 		authCtx := gssapi.NewSecurityContext(ctx)

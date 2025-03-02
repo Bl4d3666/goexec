@@ -16,10 +16,27 @@ var (
 	ctx      context.Context
 	authOpts *adauth.Options
 
-	debug, trace   bool
+	debug          bool
 	command        string
+	executable     string
 	executablePath string
 	executableArgs string
+
+	needsTarget = func(cmd *cobra.Command, args []string) (err error) {
+		if len(args) != 1 {
+			return fmt.Errorf("command require exactly one positional argument: [target]")
+		}
+		if creds, target, err = authOpts.WithTarget(ctx, "cifs", args[0]); err != nil {
+			return fmt.Errorf("failed to parse target: %w", err)
+		}
+		if creds == nil {
+			return fmt.Errorf("no credentials supplied")
+		}
+		if target == nil {
+			return fmt.Errorf("no target supplied")
+		}
+		return
+	}
 
 	rootCmd = &cobra.Command{
 		Use: "goexec",
@@ -42,13 +59,16 @@ func init() {
 
 	rootCmd.InitDefaultVersionFlag()
 	rootCmd.InitDefaultHelpCmd()
-	rootCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "Enable debug logging")
+	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
 
 	authOpts = &adauth.Options{Debug: log.Debug().Msgf}
 	authOpts.RegisterFlags(rootCmd.PersistentFlags())
 
 	scmrCmdInit()
 	rootCmd.AddCommand(scmrCmd)
+
+	tschCmdInit()
+	rootCmd.AddCommand(tschCmd)
 }
 
 func Execute() {

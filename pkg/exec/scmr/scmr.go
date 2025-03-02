@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/oiweiwei/go-msrpc/msrpc/scmr/svcctl/v2"
 	"github.com/FalconOpsLLC/goexec/internal/util"
 	"github.com/FalconOpsLLC/goexec/pkg/exec"
 	"github.com/FalconOpsLLC/goexec/pkg/windows"
+	"github.com/oiweiwei/go-msrpc/msrpc/scmr/svcctl/v2"
 )
 
 type service struct {
@@ -23,14 +23,14 @@ type service struct {
 
 // openSCM opens a handle to SCM via ROpenSCManagerW
 // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-scmr/dc84adb3-d51d-48eb-820d-ba1c6ca5faf2
-func (executor *Executor) openSCM(ctx context.Context) (scm *svcctl.Handle, code uint32, err error) {
-	if executor.ctl != nil {
+func (mod *Module) openSCM(ctx context.Context) (scm *svcctl.Handle, code uint32, err error) {
+	if mod.ctl != nil {
 
-		hostname := executor.hostname
+		hostname := mod.hostname
 		if hostname == "" {
 			hostname = util.RandomHostname()
 		}
-		if response, err := executor.ctl.OpenSCMW(ctx, &svcctl.OpenSCMWRequest{
+		if response, err := mod.ctl.OpenSCMW(ctx, &svcctl.OpenSCMWRequest{
 			MachineName:   hostname + "\x00",    // lpMachineName; The server's name (i.e. DC01, dc01.domain.local)
 			DatabaseName:  "ServicesActive\x00", // lpDatabaseName; must be "ServicesActive" or "ServicesFailed"
 			DesiredAccess: ServiceModifyAccess,  // dwDesiredAccess; requested access - appears to be ignored?
@@ -49,10 +49,10 @@ func (executor *Executor) openSCM(ctx context.Context) (scm *svcctl.Handle, code
 
 // createService creates a service with the provided configuration via RCreateServiceW
 // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-scmr/6a8ca926-9477-4dd4-b766-692fab07227e
-func (executor *Executor) createService(ctx context.Context, scm *svcctl.Handle, scfg *service, ecfg *exec.ExecutionConfig) (code uint32, err error) {
-	if executor.ctl != nil && scm != nil && scfg != nil && scfg.createConfig != nil {
+func (mod *Module) createService(ctx context.Context, scm *svcctl.Handle, scfg *service, ecfg *exec.ExecutionConfig) (code uint32, err error) {
+	if mod.ctl != nil && scm != nil && scfg != nil && scfg.createConfig != nil {
 		cfg := scfg.createConfig
-		if response, err := executor.ctl.CreateServiceW(ctx, &svcctl.CreateServiceWRequest{
+		if response, err := mod.ctl.CreateServiceW(ctx, &svcctl.CreateServiceWRequest{
 			ServiceManager: scm,
 			ServiceName:    cfg.ServiceName + "\x00",
 			DisplayName:    cfg.DisplayName + "\x00",
@@ -76,9 +76,9 @@ func (executor *Executor) createService(ctx context.Context, scm *svcctl.Handle,
 
 // openService opens a handle to a service given the service name (lpServiceName)
 // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-scmr/6d0a4225-451b-4132-894d-7cef7aecfd2d
-func (executor *Executor) openService(ctx context.Context, scm *svcctl.Handle, svcName string) (*svcctl.Handle, uint32, error) {
-	if executor.ctl != nil && scm != nil {
-		if openResponse, err := executor.ctl.OpenServiceW(ctx, &svcctl.OpenServiceWRequest{
+func (mod *Module) openService(ctx context.Context, scm *svcctl.Handle, svcName string) (*svcctl.Handle, uint32, error) {
+	if mod.ctl != nil && scm != nil {
+		if openResponse, err := mod.ctl.OpenServiceW(ctx, &svcctl.OpenServiceWRequest{
 			ServiceManager: scm,
 			ServiceName:    svcName,
 			DesiredAccess:  ServiceAllAccess,
@@ -99,9 +99,9 @@ func (executor *Executor) openService(ctx context.Context, scm *svcctl.Handle, s
 
 // deleteService deletes an existing service with RDeleteService
 // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-scmr/6744cdb8-f162-4be0-bb31-98996b6495be
-func (executor *Executor) deleteService(ctx context.Context, scm *svcctl.Handle, svc *service) (code uint32, err error) {
-	if executor.ctl != nil && scm != nil && svc != nil {
-		if deleteResponse, err := executor.ctl.DeleteService(ctx, &svcctl.DeleteServiceRequest{Service: svc.handle}); err != nil {
+func (mod *Module) deleteService(ctx context.Context, scm *svcctl.Handle, svc *service) (code uint32, err error) {
+	if mod.ctl != nil && scm != nil && svc != nil {
+		if deleteResponse, err := mod.ctl.DeleteService(ctx, &svcctl.DeleteServiceRequest{Service: svc.handle}); err != nil {
 			defer func() {}()
 			if deleteResponse != nil {
 				return deleteResponse.Return, fmt.Errorf("delete service response: %w", err)
@@ -115,9 +115,9 @@ func (executor *Executor) deleteService(ctx context.Context, scm *svcctl.Handle,
 
 // controlService sets the state of the provided process
 // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-scmr/e1c478be-117f-4512-9b67-17c20a48af97
-func (executor *Executor) controlService(ctx context.Context, scm *svcctl.Handle, svc *service, control uint32) (code uint32, err error) {
-	if executor.ctl != nil && scm != nil && svc != nil {
-		if controlResponse, err := executor.ctl.ControlService(ctx, &svcctl.ControlServiceRequest{
+func (mod *Module) controlService(ctx context.Context, scm *svcctl.Handle, svc *service, control uint32) (code uint32, err error) {
+	if mod.ctl != nil && scm != nil && svc != nil {
+		if controlResponse, err := mod.ctl.ControlService(ctx, &svcctl.ControlServiceRequest{
 			Service: svc.handle,
 			Control: control,
 		}); err != nil {
@@ -133,8 +133,8 @@ func (executor *Executor) controlService(ctx context.Context, scm *svcctl.Handle
 
 // stopService sends stop signal to existing service using controlService
 // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-scmr/e1c478be-117f-4512-9b67-17c20a48af97
-func (executor *Executor) stopService(ctx context.Context, scm *svcctl.Handle, svc *service) (code uint32, err error) {
-	if code, err = executor.controlService(ctx, scm, svc, windows.SERVICE_CONTROL_STOP); code == windows.ERROR_SERVICE_NOT_ACTIVE {
+func (mod *Module) stopService(ctx context.Context, scm *svcctl.Handle, svc *service) (code uint32, err error) {
+	if code, err = mod.controlService(ctx, scm, svc, windows.SERVICE_CONTROL_STOP); code == windows.ERROR_SERVICE_NOT_ACTIVE {
 		err = nil
 	}
 	return
@@ -142,9 +142,9 @@ func (executor *Executor) stopService(ctx context.Context, scm *svcctl.Handle, s
 
 // startService starts the specified service with RStartServiceW
 // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-scmr/d9be95a2-cf01-4bdc-b30f-6fe4b37ada16
-func (executor *Executor) startService(ctx context.Context, scm *svcctl.Handle, svc *service) (code uint32, err error) {
-	if executor.ctl != nil && scm != nil && svc != nil {
-		if startResponse, err := executor.ctl.StartServiceW(ctx, &svcctl.StartServiceWRequest{Service: svc.handle}); err != nil {
+func (mod *Module) startService(ctx context.Context, scm *svcctl.Handle, svc *service) (code uint32, err error) {
+	if mod.ctl != nil && scm != nil && svc != nil {
+		if startResponse, err := mod.ctl.StartServiceW(ctx, &svcctl.StartServiceWRequest{Service: svc.handle}); err != nil {
 			if startResponse != nil {
 				// TODO: check if service is already running, return nil error if so
 				if startResponse.Return == windows.ERROR_SERVICE_REQUEST_TIMEOUT {
@@ -161,9 +161,9 @@ func (executor *Executor) startService(ctx context.Context, scm *svcctl.Handle, 
 
 // closeService closes the specified service handle using RCloseServiceHandle
 // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-scmr/a2a4e174-09fb-4e55-bad3-f77c4b13245c
-func (executor *Executor) closeService(ctx context.Context, svc *svcctl.Handle) (code uint32, err error) {
-	if executor.ctl != nil && svc != nil {
-		if closeResponse, err := executor.ctl.CloseService(ctx, &svcctl.CloseServiceRequest{ServiceObject: svc}); err != nil {
+func (mod *Module) closeService(ctx context.Context, svc *svcctl.Handle) (code uint32, err error) {
+	if mod.ctl != nil && svc != nil {
+		if closeResponse, err := mod.ctl.CloseService(ctx, &svcctl.CloseServiceRequest{ServiceObject: svc}); err != nil {
 			if closeResponse != nil {
 				return closeResponse.Return, fmt.Errorf("close service response: %w", err)
 			}
@@ -176,9 +176,9 @@ func (executor *Executor) closeService(ctx context.Context, svc *svcctl.Handle) 
 
 // getServiceConfig fetches the configuration details of a service given a handle passed in a service{} structure.
 // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-scmr/89e2d5b1-19cf-44ca-969f-38eea9fe7f3c
-func (executor *Executor) queryServiceConfig(ctx context.Context, svc *service) (code uint32, err error) {
-	if executor.ctl != nil && svc != nil && svc.handle != nil {
-		if getResponse, err := executor.ctl.QueryServiceConfigW(ctx, &svcctl.QueryServiceConfigWRequest{
+func (mod *Module) queryServiceConfig(ctx context.Context, svc *service) (code uint32, err error) {
+	if mod.ctl != nil && svc != nil && svc.handle != nil {
+		if getResponse, err := mod.ctl.QueryServiceConfigW(ctx, &svcctl.QueryServiceConfigWRequest{
 			Service:      svc.handle,
 			BufferLength: 1024 * 8,
 		}); err != nil {
@@ -196,9 +196,9 @@ func (executor *Executor) queryServiceConfig(ctx context.Context, svc *service) 
 
 // queryServiceStatus fetches the state of the specified service
 // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-scmr/cf94d915-b4e1-40e5-872b-a9cb3ad09b46
-func (executor *Executor) queryServiceStatus(ctx context.Context, svc *service) (uint32, error) {
-	if executor.ctl != nil && svc != nil {
-		if queryResponse, err := executor.ctl.QueryServiceStatus(ctx, &svcctl.QueryServiceStatusRequest{Service: svc.handle}); err != nil {
+func (mod *Module) queryServiceStatus(ctx context.Context, svc *service) (uint32, error) {
+	if mod.ctl != nil && svc != nil {
+		if queryResponse, err := mod.ctl.QueryServiceStatus(ctx, &svcctl.QueryServiceStatusRequest{Service: svc.handle}); err != nil {
 			if queryResponse != nil {
 				return queryResponse.Return, fmt.Errorf("query service status response: %w", err)
 			}
@@ -213,9 +213,9 @@ func (executor *Executor) queryServiceStatus(ctx context.Context, svc *service) 
 
 // changeServiceConfigBinary edits the provided service's lpBinaryPathName
 // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-scmr/61ea7ed0-c49d-4152-a164-b4830f16c8a4
-func (executor *Executor) changeServiceConfigBinary(ctx context.Context, svc *service, bin string) (code uint32, err error) {
-	if executor.ctl != nil && svc != nil && svc.handle != nil {
-		if changeResponse, err := executor.ctl.ChangeServiceConfigW(ctx, &svcctl.ChangeServiceConfigWRequest{
+func (mod *Module) changeServiceConfigBinary(ctx context.Context, svc *service, bin string) (code uint32, err error) {
+	if mod.ctl != nil && svc != nil && svc.handle != nil {
+		if changeResponse, err := mod.ctl.ChangeServiceConfigW(ctx, &svcctl.ChangeServiceConfigWRequest{
 			Service:        svc.handle,
 			ServiceType:    svc.svcConfig.ServiceType,
 			StartType:      svc.svcConfig.StartType,
