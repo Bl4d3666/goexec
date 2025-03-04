@@ -3,7 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"github.com/bryanmcnulty/adauth"
+	"github.com/RedTeamPentesting/adauth"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 	"os"

@@ -7,7 +7,7 @@ import (
 	"github.com/FalconOpsLLC/goexec/pkg/client/dcerpc"
 	"github.com/FalconOpsLLC/goexec/pkg/exec"
 	"github.com/FalconOpsLLC/goexec/pkg/windows"
-	"github.com/bryanmcnulty/adauth"
+	"github.com/RedTeamPentesting/adauth"
 	"github.com/rs/zerolog"
 )
 

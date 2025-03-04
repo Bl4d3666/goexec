@@ -8,7 +8,7 @@ import (
 	"github.com/FalconOpsLLC/goexec/internal/util"
 	dce "github.com/FalconOpsLLC/goexec/pkg/client/dcerpc"
 	"github.com/FalconOpsLLC/goexec/pkg/exec"
-	"github.com/bryanmcnulty/adauth"
+	"github.com/RedTeamPentesting/adauth"
 	"github.com/oiweiwei/go-msrpc/dcerpc"
 	"github.com/oiweiwei/go-msrpc/msrpc/tsch/itaskschedulerservice/v1"
 	"github.com/rs/zerolog"

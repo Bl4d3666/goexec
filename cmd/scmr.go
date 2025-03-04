@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/bryanmcnulty/adauth"
+	"github.com/RedTeamPentesting/adauth"
 	"github.com/spf13/cobra"
 
 	"github.com/FalconOpsLLC/goexec/pkg/exec"

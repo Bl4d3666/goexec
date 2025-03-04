@@ -2,7 +2,7 @@ package exec
 
 import (
 	"context"
-	"github.com/bryanmcnulty/adauth"
+	"github.com/RedTeamPentesting/adauth"
 )
 
 type CleanupConfig struct {

@@ -3,7 +3,7 @@ package tschexec
 import (
 	"context"
 	"github.com/FalconOpsLLC/goexec/pkg/client/dcerpc"
-	"github.com/bryanmcnulty/adauth"
+	"github.com/RedTeamPentesting/adauth"
 	"github.com/oiweiwei/go-msrpc/msrpc/tsch/itaskschedulerservice/v1"
 	"github.com/rs/zerolog"
 	"time"
