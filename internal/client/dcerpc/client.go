@@ -2,7 +2,7 @@ package dcerpc
 
 import (
 	"context"
-	"github.com/bryanmcnulty/adauth"
+	"github.com/RedTeamPentesting/adauth"
 )
 
 type Client interface {

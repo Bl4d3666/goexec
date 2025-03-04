@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/bryanmcnulty/adauth"
-	"github.com/bryanmcnulty/adauth/dcerpcauth"
+	"github.com/RedTeamPentesting/adauth"
+	"github.com/RedTeamPentesting/adauth/dcerpcauth"
 	"github.com/oiweiwei/go-msrpc/dcerpc"
 	"github.com/oiweiwei/go-msrpc/msrpc/epm/epm/v3"
 	"github.com/oiweiwei/go-msrpc/msrpc/scmr/svcctl/v2"
@@ -63,6 +63,10 @@ func (client *DCEClient) OpenSvcctl(ctx context.Context) (ctl svcctl.SvcctlClien
 		client.log.Debug().Err(err).Msg("Failed to open Svcctl client")
 	}
 	return
+}
+
+func (client *DCEClient) DCE() dcerpc.Conn {
+	return client.conn
 }
 
 func (client *DCEClient) Connect(ctx context.Context, creds *adauth.Credential, target *adauth.Target, dialOpts ...dcerpc.Option) (err error) {

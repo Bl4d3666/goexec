@@ -1,37 +1,36 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
-	"github.com/bryanmcnulty/adauth"
+	"github.com/FalconOpsLLC/goexec/internal/exec"
+	scmrexec2 "github.com/FalconOpsLLC/goexec/internal/exec/scmr"
+	"github.com/FalconOpsLLC/goexec/internal/windows"
+	"github.com/RedTeamPentesting/adauth"
 	"github.com/spf13/cobra"
 
-	"github.com/FalconOpsLLC/goexec/pkg/exec"
-	scmrexec "github.com/FalconOpsLLC/goexec/pkg/exec/scmr"
-	"github.com/FalconOpsLLC/goexec/pkg/windows"
+	scmrexec "github.com/FalconOpsLLC/goexec/internal/exec/scmr"
 )
 
 func scmrCmdInit() {
-	scmrCmd.PersistentFlags().StringVarP(&executablePath, "executable-path", "e", "", "Full path to remote Windows executable")
+	scmrCmd.PersistentFlags().StringVarP(&executablePath, "executable-path", "f", "", "Full path to remote Windows executable")
 	scmrCmd.PersistentFlags().StringVarP(&executableArgs, "args", "a", "", "Arguments to pass to executable")
-	scmrCmd.PersistentFlags().StringVarP(&scmrName, "service", "s", "", "Name of service to create or modify")
-	scmrCmd.PersistentFlags().BoolVar(&scmrNoStart, "no-start", false, "Don't start service after execution")
+	scmrCmd.PersistentFlags().StringVarP(&scmrName, "service-name", "s", "", "Name of service to create or modify")
 
 	scmrCmd.MarkPersistentFlagRequired("executable-path")
-	scmrCmd.MarkPersistentFlagRequired("service")
+	scmrCmd.MarkPersistentFlagRequired("service-name")
 
 	scmrCmd.AddCommand(scmrChangeCmd)
-	scmrChangeCmdInit()
-	scmrCmd.AddCommand(scmrCreateCmd)
 	scmrCreateCmdInit()
+	scmrCmd.AddCommand(scmrCreateCmd)
+	scmrChangeCmdInit()
 }
 
 func scmrChangeCmdInit() {
-	// no unique flags
+	scmrChangeCmd.Flags().StringVarP(&scmrDisplayName, "display-name", "n", "", "Display name of service to create")
+	scmrChangeCmd.Flags().BoolVar(&scmrNoStart, "no-start", false, "Don't start service")
 }
 
 func scmrCreateCmdInit() {
-	scmrCreateCmd.Flags().StringVarP(&scmrDisplayName, "display-name", "n", "", "Display name new service")
 	scmrCreateCmd.Flags().BoolVar(&scmrNoDelete, "no-delete", false, "Don't delete service after execution")
 }
 
@@ -59,17 +58,7 @@ var (
 	scmrCmd = &cobra.Command{
 		Use:   "scmr",
 		Short: "Establish execution via SCMR",
-		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) != 1 {
-				return errors.New(`command not set. Choose from (change, create)`)
-			}
-			return nil
-		},
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := cmd.Help(); err != nil {
-				panic(err)
-			}
-		},
+		Args:  cobra.NoArgs,
 	}
 	scmrCreateCmd = &cobra.Command{
 		Use:   "create [target]",
@@ -83,13 +72,13 @@ var (
 				scmrDisplayName = scmrName
 				log.Warn().Msg("No display name specified, using service name as display name")
 			}
-			executor := scmrexec.Executor{}
+			executor := scmrexec.Module{}
 			execCfg := &exec.ExecutionConfig{
 				ExecutablePath:  executablePath,
 				ExecutableArgs:  executableArgs,
-				ExecutionMethod: scmrexec.MethodCreate,
+				ExecutionMethod: scmrexec2.MethodCreate,
 
-				ExecutionMethodConfig: scmrexec.MethodCreateConfig{
+				ExecutionMethodConfig: scmrexec2.MethodCreateConfig{
 					NoDelete:    scmrNoDelete,
 					ServiceName: scmrName,
 					DisplayName: scmrDisplayName,
@@ -108,13 +97,13 @@ var (
 		Short: "Change an existing Windows service to gain execution",
 		Args:  scmrArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			executor := scmrexec.Executor{}
+			executor := scmrexec.Module{}
 			execCfg := &exec.ExecutionConfig{
 				ExecutablePath:  executablePath,
 				ExecutableArgs:  executableArgs,
-				ExecutionMethod: scmrexec.MethodModify,
+				ExecutionMethod: scmrexec2.MethodModify,
 
-				ExecutionMethodConfig: scmrexec.MethodModifyConfig{
+				ExecutionMethodConfig: scmrexec2.MethodModifyConfig{
 					NoStart:     scmrNoStart,
 					ServiceName: scmrName,
 				},
