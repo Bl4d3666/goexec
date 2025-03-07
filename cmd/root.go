@@ -1,79 +1,83 @@
 package cmd
 
 import (
-	"context"
-	"fmt"
-	"github.com/RedTeamPentesting/adauth"
-	"github.com/rs/zerolog"
-	"github.com/spf13/cobra"
-	"os"
-	"regexp"
+  "context"
+  "fmt"
+  "github.com/RedTeamPentesting/adauth"
+  "github.com/rs/zerolog"
+  "github.com/spf13/cobra"
+  "os"
+  "regexp"
 )
 
 var (
-	//logFile string
-	log      zerolog.Logger
-	ctx      context.Context
-	authOpts *adauth.Options
+  //logFile string
+  log      zerolog.Logger
+  ctx      context.Context
+  authOpts *adauth.Options
 
-	debug          bool
-	command        string
-	executable     string
-	executablePath string
-	executableArgs string
+  debug            bool
+  command          string
+  executable       string
+  executablePath   string
+  executableArgs   string
+  workingDirectory string
 
-	needsTarget = func(cmd *cobra.Command, args []string) (err error) {
-		if len(args) != 1 {
-			return fmt.Errorf("command require exactly one positional argument: [target]")
-		}
-		if creds, target, err = authOpts.WithTarget(ctx, "cifs", args[0]); err != nil {
-			return fmt.Errorf("failed to parse target: %w", err)
-		}
-		if creds == nil {
-			return fmt.Errorf("no credentials supplied")
-		}
-		if target == nil {
-			return fmt.Errorf("no target supplied")
-		}
-		return
-	}
+  needsTarget = func(cmd *cobra.Command, args []string) (err error) {
+    if len(args) != 1 {
+      return fmt.Errorf("command require exactly one positional argument: [target]")
+    }
+    if creds, target, err = authOpts.WithTarget(ctx, "cifs", args[0]); err != nil {
+      return fmt.Errorf("failed to parse target: %w", err)
+    }
+    if creds == nil {
+      return fmt.Errorf("no credentials supplied")
+    }
+    if target == nil {
+      return fmt.Errorf("no target supplied")
+    }
+    return
+  }
 
-	rootCmd = &cobra.Command{
-		Use: "goexec",
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) (err error) {
-			// For modules that require a full executable path
-			if executablePath != "" && !regexp.MustCompile(`^([a-zA-Z]:)?\\`).MatchString(executablePath) {
-				return fmt.Errorf("executable path (-e) must be an absolute Windows path, i.e. C:\\Windows\\System32\\cmd.exe")
-			}
-			log = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).Level(zerolog.InfoLevel).With().Timestamp().Logger()
-			if debug {
-				log = log.Level(zerolog.DebugLevel)
-			}
-			return
-		},
-	}
+  rootCmd = &cobra.Command{
+    Use: "goexec",
+    PersistentPreRunE: func(cmd *cobra.Command, args []string) (err error) {
+      // For modules that require a full executable path
+      if executablePath != "" && !regexp.MustCompile(`^([a-zA-Z]:)?\\`).MatchString(executablePath) {
+        return fmt.Errorf("executable path (-e) must be an absolute Windows path, i.e. C:\\Windows\\System32\\cmd.exe")
+      }
+      log = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).Level(zerolog.InfoLevel).With().Timestamp().Logger()
+      if debug {
+        log = log.Level(zerolog.DebugLevel)
+      }
+      return
+    },
+  }
 )
 
 func init() {
-	ctx = context.Background()
+  ctx = context.Background()
 
-	rootCmd.InitDefaultVersionFlag()
-	rootCmd.InitDefaultHelpCmd()
-	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
+  rootCmd.InitDefaultVersionFlag()
+  rootCmd.InitDefaultHelpCmd()
+  rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
 
-	authOpts = &adauth.Options{Debug: log.Debug().Msgf}
-	authOpts.RegisterFlags(rootCmd.PersistentFlags())
+  authOpts = &adauth.Options{Debug: log.Debug().Msgf}
+  authOpts.RegisterFlags(rootCmd.PersistentFlags())
 
-	scmrCmdInit()
-	rootCmd.AddCommand(scmrCmd)
+  scmrCmdInit()
+  rootCmd.AddCommand(scmrCmd)
 
-	tschCmdInit()
-	rootCmd.AddCommand(tschCmd)
+  tschCmdInit()
+  rootCmd.AddCommand(tschCmd)
+
+  wmiCmdInit()
+  rootCmd.AddCommand(wmiCmd)
 }
 
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+  if err := rootCmd.Execute(); err != nil {
+    fmt.Println(err)
+    os.Exit(1)
+  }
 }
