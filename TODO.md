@@ -3,13 +3,15 @@
 ## Resolve Before Release
 
 ### Higher Priority
-- [ ] Add WMI module
+- [X] Add WMI module
 - [ ] Add psexec module (RemComSvc)
-- [ ] Testing on different Windows versions
+- [ ] Testing against different Windows machines
+- [ ] Testing from Windows (compile to PE)
 
 ### Other
 - [ ] Fix SCMR `change` method so that dependencies field isn't permanently overwritten
 - [ ] Add `delete` command to all modules that may involve cleanup - use `tsch delete` for reference
+- [ ] Standardize modules to interface for future use
 
 ## Resolve Eventually
 
