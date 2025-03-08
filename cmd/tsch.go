@@ -1,10 +1,12 @@
 package cmd
 
 import (
+  "fmt"
   "github.com/FalconOpsLLC/goexec/internal/client/dce"
   "github.com/FalconOpsLLC/goexec/internal/exec"
   "github.com/FalconOpsLLC/goexec/internal/exec/tsch"
   "github.com/spf13/cobra"
+  "regexp"
   "time"
 )
 
@@ -29,7 +31,7 @@ func tschDeleteCmdInit() {
 func tschDemandCmdInit() {
   tschDemandCmd.Flags().StringVarP(&executable, "executable", "e", "", "Remote Windows executable to invoke")
   tschDemandCmd.Flags().StringVarP(&executableArgs, "args", "a", "", "Arguments to pass to executable")
-  tschDemandCmd.Flags().StringVarP(&tschName, "name", "n", "", "Target task name")
+  tschDemandCmd.Flags().StringVarP(&tschTaskName, "name", "n", "", "Target task name")
   tschDemandCmd.Flags().BoolVar(&tschNoDelete, "no-delete", false, "Don't delete task after execution")
   if err := tschDemandCmd.MarkFlagRequired("executable"); err != nil {
     panic(err)
@@ -39,7 +41,7 @@ func tschDemandCmdInit() {
 func tschRegisterCmdInit() {
   tschRegisterCmd.Flags().StringVarP(&executable, "executable", "e", "", "Remote Windows executable to invoke")
   tschRegisterCmd.Flags().StringVarP(&executableArgs, "args", "a", "", "Arguments to pass to executable")
-  tschRegisterCmd.Flags().StringVarP(&tschName, "name", "n", "", "Target task name")
+  tschRegisterCmd.Flags().StringVarP(&tschTaskName, "name", "n", "", "Target task name")
   tschRegisterCmd.Flags().DurationVar(&tschStopDelay, "delay-stop", time.Duration(5*time.Second), "Delay between task execution and termination. This will not stop the process spawned by the task")
   tschRegisterCmd.Flags().DurationVarP(&tschDelay, "delay-start", "d", time.Duration(5*time.Second), "Delay between task registration and execution")
   tschRegisterCmd.Flags().DurationVarP(&tschDeleteDelay, "delay-delete", "D", time.Duration(0*time.Second), "Delay between task termination and deletion")
@@ -55,14 +57,34 @@ func tschRegisterCmdInit() {
   }
 }
 
+func tschArgs(principal string) func(cmd *cobra.Command, args []string) error {
+  return func(cmd *cobra.Command, args []string) error {
+    if tschTaskPath != "" && !tschTaskPathRegex.MatchString(tschTaskPath) {
+      return fmt.Errorf("invalid task path: %s", tschTaskPath)
+    }
+    if tschTaskName != "" {
+      if !tschTaskNameRegex.MatchString(tschTaskName) {
+        return fmt.Errorf("invalid task name: %s", tschTaskName)
+
+      } else if tschTaskPath == "" {
+        tschTaskPath = `\` + tschTaskName
+      }
+    }
+    return needsRpcTarget(principal)(cmd, args)
+  }
+}
+
 var (
   tschNoDelete    bool
   tschCallDelete  bool
   tschDeleteDelay time.Duration
   tschStopDelay   time.Duration
   tschDelay       time.Duration
-  tschName        string
+  tschTaskName    string
   tschTaskPath    string
+
+  tschTaskPathRegex = regexp.MustCompile(`^\\[^ :/\\][^:/]*$`)
+  tschTaskNameRegex = regexp.MustCompile(`^[^ :/\\][^:/\\]*$`)
 
   tschCmd = &cobra.Command{
     Use:   "tsch",
@@ -84,7 +106,7 @@ References:
   SchRpcDelete - https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/360bb9b1-dd2a-4b36-83ee-21f12cb97cff
   DeleteExpiredTaskAfter - https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/6bfde6fe-440e-4ddd-b4d6-c8fc0bc06fae
 `,
-    Args: needsRpcTarget("cifs"),
+    Args: tschArgs("cifs"),
     Run: func(cmd *cobra.Command, args []string) {
 
       log = log.With().
@@ -137,7 +159,7 @@ References:
   SchRpcRegisterTask - https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/849c131a-64e4-46ef-b015-9d4c599c5167
   SchRpcRun - https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/77f2250d-500a-40ee-be18-c82f7079c4f0
 `,
-    Args: needsTarget("cifs"),
+    Args: tschArgs("cifs"),
     Run: func(cmd *cobra.Command, args []string) {
 
       log = log.With().
@@ -163,7 +185,7 @@ References:
 
         ExecutionMethodConfig: tschexec.MethodDemandConfig{
           NoDelete: tschNoDelete,
-          TaskName: tschName,
+          TaskPath: tschTaskPath,
         },
       }
       if err := module.Connect(log.WithContext(ctx), creds, target, connCfg); err != nil {
@@ -182,7 +204,7 @@ References:
 References:
   SchRpcDelete - https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/360bb9b1-dd2a-4b36-83ee-21f12cb97cff
 `,
-    Args: needsTarget("cifs"),
+    Args: tschArgs("cifs"),
     Run: func(cmd *cobra.Command, args []string) {
       log = log.With().
         Str("module", "tsch").

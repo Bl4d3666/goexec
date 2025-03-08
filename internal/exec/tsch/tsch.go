@@ -55,7 +55,7 @@ type settings struct {
 type actionExec struct {
   XMLName   xml.Name `xml:"Exec"`
   Command   string   `xml:"Command"`
-  Arguments string   `xml:"Arguments"`
+  Arguments string   `xml:"Arguments,omitempty"`
 }
 
 type actions struct {
@@ -77,14 +77,13 @@ type principal struct {
 }
 
 type task struct {
-  XMLName       xml.Name `xml:"Task"`
-  TaskVersion   string   `xml:"version,attr"`
-  TaskNamespace string   `xml:"xmlns,attr"`
-  //TimeTriggers  []taskTimeTrigger `xml:"Triggers>TimeTrigger,omitempty"` // TODO: triggers type
-  Triggers   triggers   `xml:"Triggers"`
-  Actions    actions    `xml:"Actions"`
-  Principals principals `xml:"Principals"`
-  Settings   settings   `xml:"Settings"`
+  XMLName       xml.Name   `xml:"Task"`
+  TaskVersion   string     `xml:"version,attr"`
+  TaskNamespace string     `xml:"xmlns,attr"`
+  Triggers      triggers   `xml:"Triggers"`
+  Actions       actions    `xml:"Actions"`
+  Principals    principals `xml:"Principals"`
+  Settings      settings   `xml:"Settings"`
 }
 
 // registerTask serializes and submits the provided task structure
@@ -106,7 +105,6 @@ func (mod *Module) registerTask(ctx context.Context, taskDef task, taskPath stri
     taskXml = TaskXMLHeader + string(doc)
     log.Debug().Str("content", taskXml).Msg("Generated task XML")
   }
-
   // Submit task
   {
     response, err := mod.tsch.RegisterTask(ctx, &itaskschedulerservice.RegisterTaskRequest{

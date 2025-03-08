@@ -25,23 +25,13 @@ const (
 var (
   TschRpcUuid                = uuid.MustParse("86D35949-83C9-4044-B424-DB363231FD0C")
   SupportedEndpointProtocols = []string{"ncacn_np", "ncacn_ip_tcp"}
-
-  defaultStringBinding *dcerpc.StringBinding
-  initErr              error
 )
-
-func init() {
-  if defaultStringBinding, initErr = dcerpc.ParseStringBinding(DefaultEndpoint); initErr != nil {
-    panic(initErr)
-  }
-}
 
 // Connect to the target & initialize DCE & TSCH clients
 func (mod *Module) Connect(ctx context.Context, creds *adauth.Credential, target *adauth.Target, ccfg *exec.ConnectionConfig) (err error) {
 
   //var port uint16
   var endpoint string = DefaultEndpoint
-  //var stringBinding = defaultStringBinding
   var epmOpts []dcerpc.Option
   var dceOpts []dcerpc.Option
 
@@ -82,17 +72,7 @@ func (mod *Module) Connect(ctx context.Context, creds *adauth.Credential, target
           }
           log = log.With().Str("endpoint", endpoint).Logger()
           log.Info().Msg("Connecting to target")
-          /*
-             if !cfg.NoEpm {
-               mapperOpts := append(dceOpts, ao...)
-               dceOpts = append(dceOpts,
-                 epm.EndpointMapper(ctx, target.AddressWithoutPort(), mapperOpts...),
-                 dcerpc.WithEndpoint(fmt.Sprintf("%s:", stringBinding.ProtocolSequence.String())))
 
-             } else {
-               dceOpts = append(dceOpts, dcerpc.WithEndpoint(stringBinding.String()))
-             }
-          */
           // Create DCERPC dialer
           mod.dce, err = dcerpc.Dial(ctx, target.AddressWithoutPort(), append(dceOpts, ao...)...)
           if err != nil {
