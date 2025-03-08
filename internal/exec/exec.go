@@ -5,6 +5,10 @@ import (
   "github.com/RedTeamPentesting/adauth"
 )
 
+const (
+  ConnectionMethodDCE = "dcerpc"
+)
+
 type ConnectionConfig struct {
   ConnectionMethod       string
   ConnectionMethodConfig interface{}

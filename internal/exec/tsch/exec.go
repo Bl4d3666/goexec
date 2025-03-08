@@ -1,289 +1,248 @@
 package tschexec
 
 import (
-	"context"
-	"encoding/xml"
-	"errors"
-	"fmt"
-	dcerpc2 "github.com/FalconOpsLLC/goexec/internal/client/dcerpc"
-	"github.com/FalconOpsLLC/goexec/internal/exec"
-	"github.com/FalconOpsLLC/goexec/internal/util"
-	"github.com/RedTeamPentesting/adauth"
-	"github.com/oiweiwei/go-msrpc/dcerpc"
-	"github.com/oiweiwei/go-msrpc/msrpc/tsch/itaskschedulerservice/v1"
-	"github.com/rs/zerolog"
-	"regexp"
-	"time"
+  "context"
+  "errors"
+  "fmt"
+  "github.com/FalconOpsLLC/goexec/internal/client/dce"
+  "github.com/FalconOpsLLC/goexec/internal/exec"
+  "github.com/FalconOpsLLC/goexec/internal/util"
+  "github.com/RedTeamPentesting/adauth"
+  "github.com/RedTeamPentesting/adauth/dcerpcauth"
+  "github.com/oiweiwei/go-msrpc/dcerpc"
+  "github.com/oiweiwei/go-msrpc/midl/uuid"
+  "github.com/oiweiwei/go-msrpc/msrpc/epm/epm/v3"
+  "github.com/oiweiwei/go-msrpc/msrpc/tsch/itaskschedulerservice/v1"
+  "github.com/oiweiwei/go-msrpc/ssp/gssapi"
+  "github.com/rs/zerolog"
+  "time"
 )
 
 const (
-	TaskXMLDurationFormat = "2006-01-02T15:04:05.9999999Z"
-	TaskXMLHeader         = `<?xml version="1.0" encoding="UTF-16"?>`
+  DefaultEndpoint = "ncacn_np:[atsvc]"
 )
 
 var (
-	TaskPathRegex = regexp.MustCompile(`^\\[^ :/\\][^:/]*$`) // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/fa8809c8-4f0f-4c6d-994a-6c10308757c1
-	TaskNameRegex = regexp.MustCompile(`^[^ :/\\][^:/\\]*$`)
+  TschRpcUuid                = uuid.MustParse("86D35949-83C9-4044-B424-DB363231FD0C")
+  SupportedEndpointProtocols = []string{"ncacn_np", "ncacn_ip_tcp"}
+
+  defaultStringBinding *dcerpc.StringBinding
+  initErr              error
 )
 
-// *very* simple implementation of xs:duration - only accepts +seconds
-func xmlDuration(dur time.Duration) string {
-	if s := int(dur.Seconds()); s >= 0 {
-		return fmt.Sprintf(`PT%dS`, s)
-	}
-	return `PT0S`
+func init() {
+  if defaultStringBinding, initErr = dcerpc.ParseStringBinding(DefaultEndpoint); initErr != nil {
+    panic(initErr)
+  }
 }
 
 // Connect to the target & initialize DCE & TSCH clients
-func (mod *Module) Connect(ctx context.Context, creds *adauth.Credential, target *adauth.Target) (err error) {
-	if mod.dce == nil {
-		mod.dce = dcerpc2.NewDCEClient(ctx, false, &dcerpc2.SmbConfig{})
-		if err = mod.dce.Connect(ctx, creds, target); err != nil {
-			return fmt.Errorf("DCE connect: %w", err)
-		} else if mod.tsch, err = itaskschedulerservice.NewTaskSchedulerServiceClient(ctx, mod.dce.DCE(), dcerpc.WithSecurityLevel(dcerpc.AuthLevelPktPrivacy)); err != nil {
-			return fmt.Errorf("init MS-TSCH client: %w", err)
-		}
-		mod.log.Info().Msg("DCE connection successful")
-	}
-	return
+func (mod *Module) Connect(ctx context.Context, creds *adauth.Credential, target *adauth.Target, ccfg *exec.ConnectionConfig) (err error) {
+
+  //var port uint16
+  var endpoint string = DefaultEndpoint
+  //var stringBinding = defaultStringBinding
+  var epmOpts []dcerpc.Option
+  var dceOpts []dcerpc.Option
+
+  log := zerolog.Ctx(ctx).With().
+    Str("func", "Connect").Logger()
+
+  if mod.dce == nil {
+    if ccfg.ConnectionMethod == exec.ConnectionMethodDCE {
+      if cfg, ok := ccfg.ConnectionMethodConfig.(dce.ConnectionMethodDCEConfig); !ok {
+        return fmt.Errorf("invalid configuration for DCE connection method")
+      } else {
+        // Connect to ITaskSchedulerService
+        {
+          // Parse target & creds
+          ctx = gssapi.NewSecurityContext(ctx)
+          ao, err := dcerpcauth.AuthenticationOptions(ctx, creds, target, &dcerpcauth.Options{})
+          if err != nil {
+            log.Error().Err(err).Msg("Failed to parse authentication options")
+            return fmt.Errorf("parse auth options: %w", err)
+          }
+          dceOpts = append(cfg.Options,
+            dcerpc.WithLogger(log),
+            dcerpc.WithSecurityLevel(dcerpc.AuthLevelPktPrivacy), // AuthLevelPktPrivacy is required for TSCH/ATSVC
+            dcerpc.WithObjectUUID(TschRpcUuid))
+
+          if cfg.Endpoint != nil {
+            endpoint = cfg.Endpoint.String()
+          }
+          if cfg.NoEpm {
+            dceOpts = append(dceOpts, dcerpc.WithEndpoint(endpoint))
+          } else {
+            epmOpts = append(epmOpts, dceOpts...)
+            dceOpts = append(dceOpts,
+              epm.EndpointMapper(ctx, target.AddressWithoutPort(), append(epmOpts, ao...)...))
+            if !cfg.EpmAuto {
+              dceOpts = append(dceOpts, dcerpc.WithEndpoint(endpoint))
+            }
+          }
+          log = log.With().Str("endpoint", endpoint).Logger()
+          log.Info().Msg("Connecting to target")
+          /*
+             if !cfg.NoEpm {
+               mapperOpts := append(dceOpts, ao...)
+               dceOpts = append(dceOpts,
+                 epm.EndpointMapper(ctx, target.AddressWithoutPort(), mapperOpts...),
+                 dcerpc.WithEndpoint(fmt.Sprintf("%s:", stringBinding.ProtocolSequence.String())))
+
+             } else {
+               dceOpts = append(dceOpts, dcerpc.WithEndpoint(stringBinding.String()))
+             }
+          */
+          // Create DCERPC dialer
+          mod.dce, err = dcerpc.Dial(ctx, target.AddressWithoutPort(), append(dceOpts, ao...)...)
+          if err != nil {
+            log.Error().Err(err).Msg("Failed to create DCERPC dialer")
+            return fmt.Errorf("create DCERPC dialer: %w", err)
+          }
+
+          // Create ITaskSchedulerService
+          mod.tsch, err = itaskschedulerservice.NewTaskSchedulerServiceClient(ctx, mod.dce)
+          if err != nil {
+            log.Error().Err(err).Msg("Failed to initialize TSCH client")
+            return fmt.Errorf("init TSCH client: %w", err)
+          }
+          log.Info().Msg("DCE connection successful")
+        }
+      }
+    } else {
+      return errors.New("unsupported connection method")
+    }
+  }
+  return
 }
 
-func (mod *Module) Cleanup(ctx context.Context, creds *adauth.Credential, target *adauth.Target, ccfg *exec.CleanupConfig) (err error) {
-	mod.log = zerolog.Ctx(ctx).With().
-		Str("module", "tsch").
-		Str("method", ccfg.CleanupMethod).Logger()
-	mod.creds = creds
-	mod.target = target
+func (mod *Module) Cleanup(ctx context.Context, ccfg *exec.CleanupConfig) (err error) {
+  log := zerolog.Ctx(ctx).With().
+    Str("method", ccfg.CleanupMethod).
+    Str("func", "Cleanup").Logger()
 
-	if ccfg.CleanupMethod == MethodDelete {
-		if cfg, ok := ccfg.CleanupMethodConfig.(MethodDeleteConfig); !ok {
-			return errors.New("invalid configuration")
-		} else {
-			if err = mod.Connect(ctx, creds, target); err != nil {
-				return fmt.Errorf("connect: %w", err)
-			} else if _, err = mod.tsch.Delete(ctx, &itaskschedulerservice.DeleteRequest{
-				Path:  cfg.TaskPath,
-				Flags: 0,
-			}); err != nil {
-				mod.log.Error().Err(err).Str("task", cfg.TaskPath).Msg("Failed to delete task")
-				return fmt.Errorf("delete task: %w", err)
-			} else {
-				mod.log.Info().Str("task", cfg.TaskPath).Msg("Task deleted successfully")
-			}
-		}
-	} else {
-		return fmt.Errorf("method not implemented: %s", ccfg.CleanupMethod)
-	}
-	return
+  if ccfg.CleanupMethod == MethodDelete {
+    if cfg, ok := ccfg.CleanupMethodConfig.(MethodDeleteConfig); !ok {
+      return errors.New("invalid configuration")
+
+    } else {
+      log = log.With().Str("task", cfg.TaskPath).Logger()
+      log.Info().Msg("Manually deleting task")
+
+      if err = mod.deleteTask(ctx, cfg.TaskPath); err == nil {
+        log.Info().Msg("Task deleted successfully")
+      }
+    }
+  } else if ccfg.CleanupMethod == "" {
+    return nil
+  } else {
+    return fmt.Errorf("unsupported cleanup method")
+  }
+  return
 }
 
-func (mod *Module) Exec(ctx context.Context, creds *adauth.Credential, target *adauth.Target, ecfg *exec.ExecutionConfig) (err error) {
+func (mod *Module) Exec(ctx context.Context, ecfg *exec.ExecutionConfig) (err error) {
 
-	mod.log = zerolog.Ctx(ctx).With().
-		Str("module", "tsch").
-		Str("method", ecfg.ExecutionMethod).Logger()
-	mod.creds = creds
-	mod.target = target
+  log := zerolog.Ctx(ctx).With().
+    Str("method", ecfg.ExecutionMethod).
+    Str("func", "Exec").Logger()
 
-	if ecfg.ExecutionMethod == MethodRegister {
-		if cfg, ok := ecfg.ExecutionMethodConfig.(MethodRegisterConfig); !ok {
-			return errors.New("invalid configuration")
+  if ecfg.ExecutionMethod == MethodRegister {
+    if cfg, ok := ecfg.ExecutionMethodConfig.(MethodRegisterConfig); !ok {
+      return errors.New("invalid configuration")
 
-		} else {
-			startTime := time.Now().UTC().Add(cfg.StartDelay)
-			stopTime := startTime.Add(cfg.StopDelay)
+    } else {
+      startTime := time.Now().UTC().Add(cfg.StartDelay)
+      stopTime := startTime.Add(cfg.StopDelay)
 
-			task := &task{
-				TaskVersion:   "1.2",                                                   // static
-				TaskNamespace: "http://schemas.microsoft.com/windows/2004/02/mit/task", // static
-				TimeTriggers: []taskTimeTrigger{
-					{
-						StartBoundary: startTime.Format(TaskXMLDurationFormat),
-						Enabled:       true,
-					},
-				},
-				Principals: defaultPrincipals,
-				Settings:   defaultSettings,
-				Actions: actions{
-					Context: defaultPrincipals.Principals[0].ID,
-					Exec: []actionExec{
-						{
-							Command:   ecfg.ExecutableName,
-							Arguments: ecfg.ExecutableArgs,
-						},
-					},
-				},
-			}
-			if !cfg.NoDelete && !cfg.CallDelete {
-				if cfg.StopDelay == 0 {
-					// EndBoundary cannot be >= StartBoundary
-					cfg.StopDelay = 1 * time.Second
-				}
-				task.Settings.DeleteExpiredTaskAfter = xmlDuration(cfg.DeleteDelay)
-				task.TimeTriggers[0].EndBoundary = stopTime.Format(TaskXMLDurationFormat)
-			}
+      tr := taskTimeTrigger{
+        StartBoundary: startTime.Format(TaskXMLDurationFormat),
+        //EndBoundary:   stopTime.Format(TaskXMLDurationFormat),
+        Enabled: true,
+      }
+      tk := newTask(nil, nil, triggers{TimeTriggers: []taskTimeTrigger{tr}}, ecfg.ExecutableName, ecfg.ExecutableArgs)
 
-			if doc, err := xml.Marshal(task); err != nil {
-				return fmt.Errorf("marshal task XML: %w", err)
+      if !cfg.NoDelete && !cfg.CallDelete {
+        if cfg.StopDelay == 0 {
+          cfg.StopDelay = time.Second
+        }
+        tk.Settings.DeleteExpiredTaskAfter = xmlDuration(cfg.DeleteDelay)
+        tk.Triggers.TimeTriggers[0].EndBoundary = stopTime.Format(TaskXMLDurationFormat)
+      }
+      taskPath := cfg.TaskPath
+      if taskPath == "" {
+        log.Debug().Msg("Task path not defined. Using random path")
+        taskPath = `\` + util.RandomString()
+      }
+      // The taskPath is changed here to the *actual path returned by SchRpcRegisterTask
+      taskPath, err = mod.registerTask(ctx, *tk, taskPath)
+      if err != nil {
+        return fmt.Errorf("call registerTask: %w", err)
+      }
 
-			} else {
-				mod.log.Debug().Str("task", string(doc)).Msg("Task XML generated")
-				docStr := TaskXMLHeader + string(doc)
+      if !cfg.NoDelete {
+        if cfg.CallDelete {
+          defer mod.deleteTask(ctx, taskPath)
 
-				taskPath := cfg.TaskPath
-				taskName := cfg.TaskName
+          log.Info().Dur("ms", cfg.StartDelay).Msg("Waiting for task to run")
+          select {
+          case <-ctx.Done():
+            log.Warn().Msg("Cancelling execution")
+            return err
+          case <-time.After(cfg.StartDelay + time.Second): // + one second for good measure
+            for {
+              if stat, err := mod.tsch.GetLastRunInfo(ctx, &itaskschedulerservice.GetLastRunInfoRequest{Path: taskPath}); err != nil {
+                log.Warn().Err(err).Msg("Failed to get last run info. Assuming task was executed")
+                break
+              } else if stat.LastRuntime.AsTime().IsZero() {
+                log.Warn().Msg("Task was not yet run. Waiting 10 additional seconds")
+                time.Sleep(10 * time.Second)
+              } else {
+                break
+              }
+            }
+            break
+          }
+        } else {
+          log.Info().Time("when", stopTime).Msg("Task is scheduled to delete")
+        }
+      }
+    }
+  } else if ecfg.ExecutionMethod == MethodDemand {
+    if cfg, ok := ecfg.ExecutionMethodConfig.(MethodDemandConfig); !ok {
+      return errors.New("invalid configuration")
 
-				if taskName == "" {
-					taskName = util.RandomString()
-				}
-				if taskPath == "" {
-					taskPath = `\` + taskName
-				}
+    } else {
+      taskPath := cfg.TaskPath
+      if taskPath == "" {
+        log.Debug().Msg("Task path not defined. Using random path")
+        taskPath = `\` + util.RandomString()
+      }
+      tr := taskTimeTrigger{Enabled: true}
+      st := newSettings(true, true, false)
+      tk := newTask(st, nil, triggers{TimeTriggers: []taskTimeTrigger{tr}}, ecfg.ExecutableName, ecfg.ExecutableArgs)
 
-				if err = mod.Connect(ctx, creds, target); err != nil {
-					return fmt.Errorf("connect: %w", err)
-				}
-				defer func() {
-					if err = mod.dce.Close(ctx); err != nil {
-						mod.log.Warn().Err(err).Msg("Failed to dispose dce client")
-					} else {
-						mod.log.Debug().Msg("Disposed DCE client")
-					}
-				}()
-				var response *itaskschedulerservice.RegisterTaskResponse
-				if response, err = mod.tsch.RegisterTask(ctx, &itaskschedulerservice.RegisterTaskRequest{
-					Path:       taskPath,
-					XML:        docStr,
-					Flags:      0, // TODO
-					LogonType:  0, // TASK_LOGON_NONE
-					CredsCount: 0,
-					Creds:      nil,
-				}); err != nil {
-					return err
+      // The taskPath is changed here to the *actual path returned by SchRpcRegisterTask
+      taskPath, err = mod.registerTask(ctx, *tk, taskPath)
+      if err != nil {
+        return fmt.Errorf("call registerTask: %w", err)
+      }
+      if !cfg.NoDelete {
+        defer mod.deleteTask(ctx, taskPath)
+      }
+      _, err := mod.tsch.Run(ctx, &itaskschedulerservice.RunRequest{
+        Path:  taskPath,
+        Flags: 0, // Maybe we want to use these?
+      })
+      if err != nil {
+        log.Error().Str("task", taskPath).Err(err).Msg("Failed to run task")
+        return fmt.Errorf("force run task: %w", err)
+      }
+      log.Info().Str("task", taskPath).Msg("Started task")
+    }
+  } else {
+    return fmt.Errorf("method '%s' not implemented", ecfg.ExecutionMethod)
+  }
 
-				} else {
-					mod.log.Info().Str("path", response.ActualPath).Msg("Task registered successfully")
-
-					if !cfg.NoDelete {
-						if cfg.CallDelete {
-							defer func() {
-								if err = mod.Cleanup(ctx, creds, target, &exec.CleanupConfig{
-									CleanupMethod:       MethodDelete,
-									CleanupMethodConfig: MethodDeleteConfig{TaskPath: taskPath},
-								}); err != nil {
-									mod.log.Error().Err(err).Msg("Failed to delete task")
-								}
-							}()
-							mod.log.Info().Dur("ms", cfg.StartDelay).Msg("Waiting for task to run")
-							select {
-							case <-ctx.Done():
-								mod.log.Warn().Msg("Cancelling execution")
-								return err
-							case <-time.After(cfg.StartDelay + (time.Second * 2)): // + two seconds
-								// TODO: check if task is running yet; delete if the wait period is over
-								break
-							}
-							return err
-						} else {
-							mod.log.Info().Time("when", stopTime).Msg("Task is scheduled to delete")
-						}
-					}
-				}
-			}
-		}
-	} else if ecfg.ExecutionMethod == MethodDemand {
-		if cfg, ok := ecfg.ExecutionMethodConfig.(MethodDemandConfig); !ok {
-			return errors.New("invalid configuration")
-
-		} else {
-			taskPath := cfg.TaskPath
-			taskName := cfg.TaskName
-
-			if taskName == "" {
-				mod.log.Debug().Msg("Task name not defined. Using random string")
-				taskName = util.RandomString()
-			}
-			if taskPath == "" {
-				taskPath = `\` + taskName
-			}
-			if !TaskNameRegex.MatchString(taskName) {
-				return fmt.Errorf("invalid task name: %s", taskName)
-			}
-			if !TaskPathRegex.MatchString(taskPath) {
-				return fmt.Errorf("invalid task path: %s", taskPath)
-			}
-
-			mod.log.Debug().Msg("Using demand method")
-			settings := defaultSettings
-			settings.AllowStartOnDemand = true
-			task := &task{
-				TaskVersion:   "1.2",                                                   // static
-				TaskNamespace: "http://schemas.microsoft.com/windows/2004/02/mit/task", // static
-				Principals:    defaultPrincipals,
-				Settings:      defaultSettings,
-				Actions: actions{
-					Context: defaultPrincipals.Principals[0].ID,
-					Exec: []actionExec{
-						{
-							Command:   ecfg.ExecutableName,
-							Arguments: ecfg.ExecutableArgs,
-						},
-					},
-				},
-			}
-			if doc, err := xml.Marshal(task); err != nil {
-				return fmt.Errorf("marshal task: %w", err)
-			} else {
-				docStr := TaskXMLHeader + string(doc)
-
-				if err = mod.Connect(ctx, creds, target); err != nil {
-					return fmt.Errorf("connect: %w", err)
-				}
-				defer func() {
-					if err = mod.dce.Close(ctx); err != nil {
-						mod.log.Warn().Err(err).Msg("Failed to dispose dce client")
-					} else {
-						mod.log.Debug().Msg("Disposed DCE client")
-					}
-				}()
-
-				var response *itaskschedulerservice.RegisterTaskResponse
-				if response, err = mod.tsch.RegisterTask(ctx, &itaskschedulerservice.RegisterTaskRequest{
-					Path:       taskPath,
-					XML:        docStr,
-					Flags:      0, // TODO
-					LogonType:  0, // TASK_LOGON_NONE
-					CredsCount: 0,
-					Creds:      nil,
-				}); err != nil {
-					return fmt.Errorf("register task: %w", err)
-
-				} else {
-					mod.log.Info().Str("task", response.ActualPath).Msg("Task registered successfully")
-					if !cfg.NoDelete {
-						defer func() {
-							if err = mod.Cleanup(ctx, creds, target, &exec.CleanupConfig{
-								CleanupMethod:       MethodDelete,
-								CleanupMethodConfig: MethodDeleteConfig{TaskPath: taskPath},
-							}); err != nil {
-								mod.log.Error().Err(err).Msg("Failed to delete task")
-							}
-						}()
-					}
-					if _, err = mod.tsch.Run(ctx, &itaskschedulerservice.RunRequest{
-						Path:  response.ActualPath,
-						Flags: 0, // Maybe we want to use these?
-					}); err != nil {
-						return err
-					} else {
-						mod.log.Info().Str("task", response.ActualPath).Msg("Started task")
-					}
-				}
-			}
-		}
-	} else {
-		return fmt.Errorf("method not implemented: %s", ecfg.ExecutionMethod)
-	}
-
-	return nil
+  return nil
 }

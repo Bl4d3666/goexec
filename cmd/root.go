@@ -23,20 +23,22 @@ var (
   executableArgs   string
   workingDirectory string
 
-  needsTarget = func(cmd *cobra.Command, args []string) (err error) {
-    if len(args) != 1 {
-      return fmt.Errorf("command require exactly one positional argument: [target]")
+  needsTarget = func(proto string) func(cmd *cobra.Command, args []string) error {
+    return func(cmd *cobra.Command, args []string) (err error) {
+      if len(args) != 1 {
+        return fmt.Errorf("command require exactly one positional argument: [target]")
+      }
+      if creds, target, err = authOpts.WithTarget(ctx, proto, args[0]); err != nil {
+        return fmt.Errorf("failed to parse target: %w", err)
+      }
+      if creds == nil {
+        return fmt.Errorf("no credentials supplied")
+      }
+      if target == nil {
+        return fmt.Errorf("no target supplied")
+      }
+      return
     }
-    if creds, target, err = authOpts.WithTarget(ctx, "cifs", args[0]); err != nil {
-      return fmt.Errorf("failed to parse target: %w", err)
-    }
-    if creds == nil {
-      return fmt.Errorf("no credentials supplied")
-    }
-    if target == nil {
-      return fmt.Errorf("no target supplied")
-    }
-    return
   }
 
   rootCmd = &cobra.Command{
@@ -67,10 +69,8 @@ func init() {
 
   scmrCmdInit()
   rootCmd.AddCommand(scmrCmd)
-
   tschCmdInit()
   rootCmd.AddCommand(tschCmd)
-
   wmiCmdInit()
   rootCmd.AddCommand(wmiCmd)
 }

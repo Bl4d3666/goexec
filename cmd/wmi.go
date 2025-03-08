@@ -59,7 +59,7 @@ References:
   https://learn.microsoft.com/en-us/windows/win32/wmisdk/wmi-classes
   `,
     Args: func(cmd *cobra.Command, args []string) (err error) {
-      if err = needsTarget(cmd, args); err == nil {
+      if err = needsTarget("cifs")(cmd, args); err == nil {
         if wmiArgMethod != "" && !methodRegex.MatchString(wmiArgMethod) {
           return fmt.Errorf("invalid CLASS.METHOD syntax: %s", wmiArgMethod)
         }
@@ -112,10 +112,11 @@ References:
 References:
   https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/create-method-in-class-win32-process
 `,
-    Args: needsTarget,
+    Args: needsTarget("cifs"),
     Run: func(cmd *cobra.Command, args []string) {
-      module := wmiexec.Module{}
+      log = log.With().Str("module", "wmi").Logger()
 
+      module := wmiexec.Module{}
       connCfg := &exec.ConnectionConfig{}
       cleanCfg := &exec.CleanupConfig{}
 
@@ -123,6 +124,7 @@ References:
         ExecutableName:  executable,
         ExecutableArgs:  executableArgs,
         ExecutionMethod: wmiexec.MethodProcess,
+
         ExecutionMethodConfig: wmiexec.MethodProcessConfig{
           Command:          command,
           WorkingDirectory: workingDirectory,
@@ -130,10 +132,8 @@ References:
       }
       if err := module.Connect(log.WithContext(ctx), creds, target, connCfg); err != nil {
         log.Fatal().Err(err).Msg("Connection failed")
-
       } else if err := module.Exec(log.WithContext(ctx), execCfg); err != nil {
         log.Fatal().Err(err).Msg("Execution failed")
-
       } else if err := module.Cleanup(log.WithContext(ctx), cleanCfg); err != nil {
         log.Error().Err(err).Msg("Cleanup failed")
       }

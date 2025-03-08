@@ -34,11 +34,14 @@ var (
 func (mod *Module) Cleanup(ctx context.Context, _ *exec.CleanupConfig) (err error) {
 
   log := zerolog.Ctx(ctx).With().
+    Str("module", "tsch").
     Str("func", "Cleanup").Logger()
 
   if err = mod.dce.Close(ctx); err != nil {
     log.Warn().Err(err).Msg("Failed to close DCERPC connection")
   }
+  mod.sc = nil
+  mod.dce = nil
   return
 }
 
@@ -50,6 +53,7 @@ func (mod *Module) Connect(ctx context.Context, creds *adauth.Credential, target
 
   ctx = gssapi.NewSecurityContext(ctx)
   log := zerolog.Ctx(ctx).With().
+    Str("module", "tsch").
     Str("func", "Connect").Logger()
 
   // Assemble DCERPC options
@@ -81,7 +85,7 @@ func (mod *Module) Connect(ctx context.Context, creds *adauth.Credential, target
     // Create DCERPC dialer
     mod.dce, err = dcerpc.Dial(ctx, target.AddressWithoutPort(), append(baseOpts, append(authOpts, dcerpc.WithEndpoint(rb))...)...)
     if err != nil {
-      return fmt.Errorf("DCERPC dial: %w", err)
+      return fmt.Errorf("create DCERPC dialer: %w", err)
     }
     // Create remote activation client
     ia, err := iactivation.NewActivationClient(ctx, mod.dce, append(baseOpts, dcerpc.WithEndpoint(rb))...)
