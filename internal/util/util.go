@@ -3,6 +3,7 @@ package util
 import (
   "math/rand" // not crypto secure
   "regexp"
+  "strings"
 )
 
 const randHostnameCharset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
@@ -32,4 +33,18 @@ func RandomStringFromCharset(charset string, length int) string {
     b[i] = charset[rand.Intn(len(charset))]
   }
   return string(b)
+}
+
+func RandomStringIfBlank(s string) string {
+  if s == "" {
+    return RandomString()
+  }
+  return s
+}
+
+func CheckNullString(s string) string {
+  if !strings.HasSuffix(s, "\x00") {
+    return s + "\x00"
+  }
+  return s
 }

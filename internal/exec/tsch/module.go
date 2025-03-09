@@ -11,8 +11,6 @@ type Module struct {
   dce dcerpc.Conn
   // tsch holds the ITaskSchedulerService client
   tsch itaskschedulerservice.TaskSchedulerServiceClient
-  // createdTasks holds any tasks that are created - for cleanup
-  createdTasks []string
 }
 
 type MethodRegisterConfig struct {

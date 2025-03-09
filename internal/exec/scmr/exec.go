@@ -1,226 +1,347 @@
 package scmrexec
 
 import (
-	"context"
-	"errors"
-	"fmt"
-	dcerpc2 "github.com/FalconOpsLLC/goexec/internal/client/dcerpc"
-	"github.com/FalconOpsLLC/goexec/internal/exec"
-	"github.com/FalconOpsLLC/goexec/internal/windows"
-	"github.com/RedTeamPentesting/adauth"
-	"github.com/rs/zerolog"
+  "context"
+  "errors"
+  "fmt"
+  "github.com/FalconOpsLLC/goexec/internal/client/dce"
+  "github.com/FalconOpsLLC/goexec/internal/exec"
+  "github.com/FalconOpsLLC/goexec/internal/util"
+  "github.com/FalconOpsLLC/goexec/internal/windows"
+  "github.com/RedTeamPentesting/adauth"
+  "github.com/oiweiwei/go-msrpc/dcerpc"
+  "github.com/oiweiwei/go-msrpc/midl/uuid"
+  "github.com/oiweiwei/go-msrpc/msrpc/scmr/svcctl/v2"
+  "github.com/rs/zerolog"
 )
 
 const (
-	MethodCreate string = "create"
-	MethodModify string = "modify"
-
-	ServiceModifyAccess uint32 = windows.SERVICE_QUERY_CONFIG | windows.SERVICE_CHANGE_CONFIG | windows.SERVICE_STOP | windows.SERVICE_START | windows.SERVICE_DELETE
-	ServiceCreateAccess uint32 = windows.SC_MANAGER_CREATE_SERVICE | windows.SERVICE_START | windows.SERVICE_STOP | windows.SERVICE_DELETE
-	ServiceAllAccess    uint32 = ServiceCreateAccess | ServiceModifyAccess
+  DefaultEndpoint = "ncacn_np:[srvsvc]"
 )
 
-func (mod *Module) createClients(ctx context.Context) (cleanup func(cCtx context.Context), err error) {
+var (
+  ScmrRpcUuid = uuid.MustParse("367ABB81-9844-35F1-AD32-98F038001003")
+)
 
-	cleanup = func(context.Context) {
-		if mod.dce != nil {
-			mod.log.Debug().Msg("Cleaning up clients")
-			if err := mod.dce.Close(ctx); err != nil {
-				mod.log.Error().Err(err).Msg("Failed to destroy DCE connection")
-			}
-		}
-	}
-	cleanup(ctx)
-	mod.dce = dcerpc2.NewDCEClient(ctx, false, &dcerpc2.SmbConfig{Port: 445})
-	cleanup = func(context.Context) {}
+func (mod *Module) Connect(ctx context.Context, creds *adauth.Credential, target *adauth.Target, ccfg *exec.ConnectionConfig) (err error) {
 
-	if err = mod.dce.Connect(ctx, mod.creds, mod.target); err != nil {
-		return nil, fmt.Errorf("connection to DCERPC failed: %w", err)
-	}
-	mod.ctl, err = mod.dce.OpenSvcctl(ctx)
-	return
+  log := zerolog.Ctx(ctx).With().
+    Str("func", "Connect").Logger()
+
+  if ccfg.ConnectionMethod == exec.ConnectionMethodDCE {
+    if cfg, ok := ccfg.ConnectionMethodConfig.(dce.ConnectionMethodDCEConfig); !ok {
+      return fmt.Errorf("invalid configuration for DCE connection method")
+    } else {
+
+      // Fetch target hostname - for opening SCM handle
+      if mod.hostname, err = target.Hostname(ctx); err != nil {
+        log.Debug().Err(err).Msg("Failed to get target hostname")
+        mod.hostname = util.RandomHostname()
+        err = nil
+      }
+      connect := func(ctx context.Context) error {
+        // Create DCE connection
+        if mod.dce, err = cfg.GetDce(ctx, creds, target, dcerpc.WithObjectUUID(ScmrRpcUuid)); err != nil {
+          log.Error().Err(err).Msg("Failed to initialize DCE dialer")
+          return fmt.Errorf("create DCE dialer: %w", err)
+        }
+        log.Info().Msg("DCE dialer initialized")
+
+        // Create SVCCTL client
+        mod.ctl, err = svcctl.NewSvcctlClient(ctx, mod.dce)
+        if err != nil {
+          log.Error().Err(err).Msg("Failed to initialize SCMR client")
+          return fmt.Errorf("init SCMR client: %w", err)
+        }
+        log.Info().Msg("DCE connection successful")
+        return nil
+      }
+      mod.reconnect = func(c context.Context) error {
+        mod.dce = nil
+        mod.ctl = nil
+        return connect(c)
+      }
+      return connect(ctx)
+    }
+  } else {
+    return errors.New("unsupported connection method")
+  }
 }
 
-func (mod *Module) Exec(ctx context.Context, creds *adauth.Credential, target *adauth.Target, ecfg *exec.ExecutionConfig) (err error) {
+func (mod *Module) Cleanup(ctx context.Context, ccfg *exec.CleanupConfig) (err error) {
 
-	vctx := context.WithoutCancel(ctx)
-	mod.log = zerolog.Ctx(ctx).With().
-		Str("module", "scmr").
-		Str("method", ecfg.ExecutionMethod).Logger()
-	mod.creds = creds
-	mod.target = target
+  log := zerolog.Ctx(ctx).With().
+    Str("method", ccfg.CleanupMethod).
+    Str("func", "Cleanup").Logger()
 
-	if ecfg.ExecutionMethod == MethodCreate {
-		if cfg, ok := ecfg.ExecutionMethodConfig.(MethodCreateConfig); !ok || cfg.ServiceName == "" {
-			return errors.New("invalid configuration")
-		} else {
-			if cleanup, err := mod.createClients(ctx); err != nil {
-				return fmt.Errorf("failed to create client: %w", err)
-			} else {
-				mod.log.Debug().Msg("Created clients")
-				defer cleanup(ctx)
-			}
-			svc := &service{
-				createConfig: &cfg,
-				name:         cfg.ServiceName,
-			}
-			scm, code, err := mod.openSCM(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to open SCM with code %d: %w", code, err)
-			}
-			mod.log.Debug().Msg("Opened handle to SCM")
-			code, err = mod.createService(ctx, scm, svc, ecfg)
-			if err != nil {
-				return fmt.Errorf("failed to create service with code %d: %w", code, err)
-			}
-			mod.log.Info().Str("service", svc.name).Msg("Service created")
-			// From here on out, make sure the service is properly deleted, even if the connection drops or something fails.
-			if !cfg.NoDelete {
-				defer func() {
-					// TODO: stop service?
-					if code, err = mod.deleteService(ctx, scm, svc); err != nil {
-						mod.log.Error().Err(err).Msg("Failed to delete service") // TODO
-					}
-					mod.log.Info().Str("service", svc.name).Msg("Service deleted successfully")
-				}()
-			}
-			if code, err = mod.startService(ctx, scm, svc); err != nil {
-				if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-					// In case of timeout or cancel, try to reestablish a connection to restore the service
-					mod.log.Info().Msg("Service start timeout/cancelled. Execution likely successful")
-					mod.log.Info().Msg("Reconnecting for cleanup procedure")
-					ctx = vctx
+  if len(mod.services) == 0 {
+    return nil
+  }
 
-					if _, err = mod.createClients(ctx); err != nil {
-						mod.log.Error().Err(err).Msg("Reconnect failed")
+  if mod.dce == nil || mod.ctl == nil {
+    // Try to reconnect
+    if err := mod.reconnect(ctx); err != nil {
+      log.Error().Err(err).Msg("Reconnect failed")
+      return err
+    }
+    log.Info().Msg("Reconnect successful")
+  }
+  if mod.scm == nil {
+    // Open a handle to SCM (again)
+    if resp, err := mod.ctl.OpenSCMW(ctx, &svcctl.OpenSCMWRequest{
+      MachineName:   util.CheckNullString(mod.hostname),
+      DatabaseName:  "ServicesActive\x00",
+      DesiredAccess: ServiceAllAccess, // TODO: Replace
+    }); err != nil {
+      log.Error().Err(err).Msg("Failed to reopen an SCM handle")
+      return err
+    } else {
+      mod.scm = resp.SCM
+      log.Info().Msg("Reopened SCM handle")
+    }
+  }
 
-					} else if scm, code, err = mod.openSCM(ctx); err != nil {
-						mod.log.Error().Err(err).Msg("Failed to reopen SCM")
+  for _, rsvc := range mod.services {
+    log = log.With().Str("service", rsvc.name).Logger()
 
-					} else if svc.handle, code, err = mod.openService(ctx, scm, svc.name); err != nil {
-						mod.log.Error().Str("service", svc.name).Err(err).Msg("Failed to reopen service handle")
+    if rsvc.handle == nil {
+      // Open a handle to the service in question
+      if or, err := mod.ctl.OpenServiceW(ctx, &svcctl.OpenServiceWRequest{
+        ServiceManager: mod.scm,
+        ServiceName:    rsvc.name,
+        DesiredAccess:  windows.SERVICE_DELETE | windows.SERVICE_CHANGE_CONFIG,
+      }); err != nil {
+        log.Error().Err(err).Msg("Failed to reopen a service handle")
+        continue
+      } else {
+        rsvc.handle = or.Service
+      }
+      log.Info().Msg("Service handle reopened")
+    }
+    if ccfg.CleanupMethod == CleanupMethodDelete {
+      // Delete the service
+      if _, err = mod.ctl.DeleteService(ctx, &svcctl.DeleteServiceRequest{Service: rsvc.handle}); err != nil {
+        log.Error().Err(err).Msg("Failed to delete service")
+        continue
+      }
+      log.Info().Msg("Service deleted successfully")
 
-					} else {
-						mod.log.Debug().Str("service", svc.name).Msg("Reconnection successful")
-					}
-				} else {
-					mod.log.Error().Err(err).Msg("Failed to start service")
-				}
-			} else {
-				mod.log.Info().Str("service", svc.name).Msg("Execution successful")
-			}
-		}
-	} else if ecfg.ExecutionMethod == MethodModify {
-		// Use service modification method
-		if cfg, ok := ecfg.ExecutionMethodConfig.(MethodModifyConfig); !ok || cfg.ServiceName == "" {
-			return errors.New("invalid configuration")
+    } else if ccfg.CleanupMethod == CleanupMethodRevert {
+      // Revert the service configuration & state
+      log.Info().Msg("Attempting to revert service configuration")
+      if _, err = mod.ctl.ChangeServiceConfigW(ctx, &svcctl.ChangeServiceConfigWRequest{
+        Service: rsvc.handle,
+        //Dependencies:     []byte(rsvc.originalConfig.Dependencies), // TODO: ensure this works
+        ServiceType:      rsvc.originalConfig.ServiceType,
+        StartType:        rsvc.originalConfig.StartType,
+        ErrorControl:     rsvc.originalConfig.ErrorControl,
+        BinaryPathName:   rsvc.originalConfig.BinaryPathName,
+        LoadOrderGroup:   rsvc.originalConfig.LoadOrderGroup,
+        ServiceStartName: rsvc.originalConfig.ServiceStartName,
+        DisplayName:      rsvc.originalConfig.DisplayName,
+        TagID:            rsvc.originalConfig.TagID,
+      }); err != nil {
+        log.Error().Err(err).Msg("Failed to revert service configuration")
+        continue
+      }
+      log.Info().Msg("Service configuration reverted")
+    }
+    if _, err = mod.ctl.CloseService(ctx, &svcctl.CloseServiceRequest{ServiceObject: rsvc.handle}); err != nil {
+      log.Warn().Err(err).Msg("Failed to close service handle")
+      return nil
+    }
+    log.Info().Msg("Closed service handle")
+  }
+  return
+}
 
-		} else {
-			// Ensure that a command (executable full path + args) is supplied
-			cmd := ecfg.GetRawCommand()
-			if cmd == "" {
-				return errors.New("no command provided")
-			}
+func (mod *Module) Exec(ctx context.Context, ecfg *exec.ExecutionConfig) (err error) {
 
-			// Initialize protocol clients
-			if cleanup, err := mod.createClients(ctx); err != nil {
-				return fmt.Errorf("failed to create client: %w", err)
-			} else {
-				mod.log.Debug().Msg("Created clients")
-				defer cleanup(ctx)
-			}
-			svc := &service{modifyConfig: &cfg, name: cfg.ServiceName}
+  //vctx := context.WithoutCancel(ctx)
+  log := zerolog.Ctx(ctx).With().
+    Str("method", ecfg.ExecutionMethod).
+    Str("func", "Exec").Logger()
 
-			// Open SCM handle
-			scm, code, err := mod.openSCM(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to create service with code %d: %w", code, err)
-			}
-			mod.log.Debug().Msg("Opened handle to SCM")
+  if ecfg.ExecutionMethod == MethodCreate {
+    if cfg, ok := ecfg.ExecutionMethodConfig.(MethodCreateConfig); !ok {
+      return errors.New("invalid configuration")
 
-			// Open service handle
-			if svc.handle, code, err = mod.openService(ctx, scm, svc.name); err != nil {
-				return fmt.Errorf("failed to open service with code %d: %w", code, err)
-			}
-			mod.log.Debug().Str("service", svc.name).Msg("Opened service")
+    } else {
+      svc := remoteService{
+        name: cfg.ServiceName,
+      }
+      defer func() { // TODO: relocate this?
+        mod.services = append(mod.services, svc)
+      }()
+      // Open a handle to SCM
+      if resp, err := mod.ctl.OpenSCMW(ctx, &svcctl.OpenSCMWRequest{
+        MachineName:   util.CheckNullString(mod.hostname),
+        DatabaseName:  "ServicesActive\x00",
+        DesiredAccess: ServiceAllAccess, // TODO: Replace
+      }); err != nil {
+        log.Debug().Err(err).Msg("Failed to open SCM handle")
+        return fmt.Errorf("open SCM handle: %w", err)
+      } else {
+        mod.scm = resp.SCM
+        log.Info().Msg("Opened SCM handle")
+      }
+      // Create service
+      serviceName := util.RandomStringIfBlank(svc.name)
+      resp, err := mod.ctl.CreateServiceW(ctx, &svcctl.CreateServiceWRequest{
+        ServiceManager: mod.scm,
+        ServiceName:    serviceName,
+        DisplayName:    util.RandomStringIfBlank(cfg.DisplayName),
+        BinaryPathName: util.CheckNullString(ecfg.GetRawCommand()),
+        ServiceType:    windows.SERVICE_WIN32_OWN_PROCESS,
+        StartType:      windows.SERVICE_DEMAND_START,
+        DesiredAccess:  ServiceAllAccess, // TODO: Replace
+      })
+      if err != nil || resp == nil || resp.Return != 0 {
+        log.Error().Err(err).Msg("Failed to create service")
+        return fmt.Errorf("create service: %w", err)
+      }
+      svc.handle = resp.Service
 
-			// Stop service before editing
-			if !cfg.NoStart {
-				if code, err = mod.stopService(ctx, scm, svc); err != nil {
-					mod.log.Warn().Err(err).Msg("Failed to stop existing service")
-				} else if code == windows.ERROR_SERVICE_NOT_ACTIVE {
-					mod.log.Debug().Str("service", svc.name).Msg("Service is not running")
-				} else {
-					mod.log.Info().Str("service", svc.name).Msg("Stopped existing service")
-					defer func() {
-						if code, err = mod.startService(ctx, scm, svc); err != nil {
-							mod.log.Error().Err(err).Msg("Failed to restore service state to running")
-						}
-					}()
-				}
-			}
-			if code, err = mod.queryServiceConfig(ctx, svc); err != nil {
-				return fmt.Errorf("failed to query service configuration with code %d: %w", code, err)
-			}
-			mod.log.Debug().
-				Str("service", svc.name).
-				Str("command", svc.svcConfig.BinaryPathName).Msg("Fetched existing service configuration")
+      log = log.With().
+        Str("service", serviceName).Logger()
+      log.Info().Msg("Service created")
 
-			// Change service configuration
-			if code, err = mod.changeServiceConfigBinary(ctx, svc, cmd); err != nil {
-				return fmt.Errorf("failed to edit service configuration with code %d: %w", code, err)
-			}
-			defer func() {
-				// Revert configuration
-				if code, err = mod.changeServiceConfigBinary(ctx, svc, svc.svcConfig.BinaryPathName); err != nil {
-					mod.log.Error().Err(err).Msg("Failed to restore service configuration")
-				} else {
-					mod.log.Info().Str("service", svc.name).Msg("Restored service configuration")
-				}
-			}()
-			mod.log.Info().
-				Str("service", svc.name).
-				Str("command", cmd).Msg("Changed service configuration")
+      // Start the service
+      sr, err := mod.ctl.StartServiceW(ctx, &svcctl.StartServiceWRequest{Service: svc.handle})
+      if err != nil {
 
-			// Start service
-			if !cfg.NoStart {
-				if code, err = mod.startService(ctx, scm, svc); err != nil {
-					if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-						// In case of timeout or cancel, try to reestablish a connection to restore the service
-						mod.log.Info().Msg("Service start timeout/cancelled. Execution likely successful")
-						mod.log.Info().Msg("Reconnecting for cleanup procedure")
-						ctx = vctx
+        if errors.Is(err, context.DeadlineExceeded) { // Check if execution timed out (execute "cmd.exe /c notepad" for test case)
+          log.Warn().Err(err).Msg("Service execution deadline exceeded")
+          // Connection closes, so we nullify the client variables and handles
+          mod.dce = nil
+          mod.ctl = nil
+          mod.scm = nil
+          svc.handle = nil
 
-						if _, err = mod.createClients(ctx); err != nil {
-							mod.log.Error().Err(err).Msg("Reconnect failed")
+        } else if sr != nil && sr.Return == windows.ERROR_SERVICE_REQUEST_TIMEOUT { // Check for request timeout
+          log.Info().Msg("Received request timeout. Execution was likely successful")
 
-						} else if scm, code, err = mod.openSCM(ctx); err != nil {
-							mod.log.Error().Err(err).Msg("Failed to reopen SCM")
+        } else {
+          log.Error().Err(err).Msg("Failed to start service")
+          return fmt.Errorf("start service: %w", err)
+        }
+        // Inform the caller that execution was likely successful despite error
+        err = nil
+      } else {
+        log.Info().Msg("Started service")
+      }
+    }
+  } else if ecfg.ExecutionMethod == MethodChange {
+    if cfg, ok := ecfg.ExecutionMethodConfig.(MethodChangeConfig); !ok {
+      return errors.New("invalid configuration")
 
-						} else if svc.handle, code, err = mod.openService(ctx, scm, svc.name); err != nil {
-							mod.log.Error().Str("service", svc.name).Err(err).Msg("Failed to reopen service handle")
+    } else {
+      svc := remoteService{
+        name: cfg.ServiceName,
+      }
+      defer func() { // TODO: relocate this?
+        mod.services = append(mod.services, svc)
+      }()
 
-						} else {
-							mod.log.Debug().Str("service", svc.name).Msg("Reconnection successful")
-						}
-					} else {
-						mod.log.Error().Err(err).Msg("Failed to start service")
-					}
-				} else {
-					mod.log.Info().Str("service", svc.name).Msg("Started service")
-				}
-				defer func() {
-					// Stop service
-					if code, err = mod.stopService(ctx, scm, svc); err != nil {
-						mod.log.Error().Err(err).Msg("Failed to stop service")
-					} else {
-						mod.log.Info().Str("service", svc.name).Msg("Stopped service")
-					}
-				}()
-			}
-		}
-	} else {
-		return fmt.Errorf("invalid method: %s", ecfg.ExecutionMethod)
-	}
-	return err
+      // Open a handle to SCM
+      if resp, err := mod.ctl.OpenSCMW(ctx, &svcctl.OpenSCMWRequest{
+        MachineName:   util.CheckNullString(mod.hostname),
+        DatabaseName:  "ServicesActive\x00",
+        DesiredAccess: ServiceAllAccess, // TODO: Replace
+      }); err != nil {
+        log.Debug().Err(err).Msg("Failed to open SCM handle")
+        return fmt.Errorf("open SCM handle: %w", err)
+      } else {
+        mod.scm = resp.SCM
+        log.Info().Msg("Opened SCM handle")
+      }
+
+      // Open a handle to the desired service
+      if resp, err := mod.ctl.OpenServiceW(ctx, &svcctl.OpenServiceWRequest{
+        ServiceManager: mod.scm,
+        ServiceName:    svc.name,
+        DesiredAccess:  ServiceAllAccess, // TODO: Replace
+      }); err != nil {
+        log.Error().Err(err).Msg("Failed to open service handle")
+        return fmt.Errorf("open service: %w", err)
+      } else {
+        svc.handle = resp.Service
+      }
+
+      // Note original service status
+      if resp, err := mod.ctl.QueryServiceStatus(ctx, &svcctl.QueryServiceStatusRequest{
+        Service: svc.handle,
+      }); err != nil {
+        log.Warn().Err(err).Msg("Failed to get service status")
+      } else {
+        svc.originalState = resp.ServiceStatus
+      }
+
+      // Note original service configuration
+      if resp, err := mod.ctl.QueryServiceConfigW(ctx, &svcctl.QueryServiceConfigWRequest{
+        Service:      svc.handle,
+        BufferLength: 8 * 1024,
+      }); err != nil {
+        log.Error().Err(err).Msg("Failed to fetch service configuration")
+        return fmt.Errorf("get service config: %w", err)
+      } else {
+        log.Info().Str("binaryPath", resp.ServiceConfig.BinaryPathName).Msg("Fetched original service configuration")
+        svc.originalConfig = resp.ServiceConfig
+      }
+
+      // Stop service if its running
+      if svc.originalState == nil || svc.originalState.CurrentState != windows.SERVICE_STOPPED {
+        if resp, err := mod.ctl.ControlService(ctx, &svcctl.ControlServiceRequest{
+          Service: svc.handle,
+          Control: windows.SERVICE_STOPPED,
+        }); err != nil {
+          if resp != nil && resp.Return == windows.ERROR_SERVICE_NOT_ACTIVE {
+            log.Info().Msg("Service is already stopped")
+          } else {
+            log.Error().Err(err).Msg("Failed to stop service")
+          }
+        } else {
+          log.Info().Msg("Service stopped")
+        }
+      }
+      // Change service configuration
+      if _, err = mod.ctl.ChangeServiceConfigW(ctx, &svcctl.ChangeServiceConfigWRequest{
+        Service:        svc.handle,
+        BinaryPathName: ecfg.GetRawCommand(),
+        //Dependencies:     []byte(svc.originalConfig.Dependencies), // TODO: ensure this works
+        ServiceType:      svc.originalConfig.ServiceType,
+        StartType:        windows.SERVICE_DEMAND_START,
+        ErrorControl:     svc.originalConfig.ErrorControl,
+        LoadOrderGroup:   svc.originalConfig.LoadOrderGroup,
+        ServiceStartName: svc.originalConfig.ServiceStartName,
+        DisplayName:      svc.originalConfig.DisplayName,
+        TagID:            svc.originalConfig.TagID,
+      }); err != nil {
+        log.Error().Err(err).Msg("Failed to change service configuration")
+        return fmt.Errorf("change service configuration: %w", err)
+      }
+      log.Info().Msg("Successfully altered service configuration")
+
+      if !cfg.NoStart {
+        if resp, err := mod.ctl.StartServiceW(ctx, &svcctl.StartServiceWRequest{Service: svc.handle}); err != nil {
+
+          if errors.Is(err, context.DeadlineExceeded) { // Check if execution timed out (execute "cmd.exe /c notepad" for test case)
+            log.Warn().Err(err).Msg("Service execution deadline exceeded")
+            // Connection closes, so we nullify the client variables and handles
+            mod.dce = nil
+            mod.ctl = nil
+            mod.scm = nil
+            svc.handle = nil
+
+          } else if resp != nil && resp.Return == windows.ERROR_SERVICE_REQUEST_TIMEOUT { // Check for request timeout
+            log.Info().Err(err).Msg("Received request timeout. Execution was likely successful")
+          } else {
+            log.Error().Err(err).Msg("Failed to start service")
+            return fmt.Errorf("start service: %w", err)
+          }
+        }
+      }
+    }
+  }
+  return
 }

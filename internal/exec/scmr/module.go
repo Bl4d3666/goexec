@@ -1,31 +1,38 @@
 package scmrexec
 
 import (
-	"github.com/FalconOpsLLC/goexec/internal/client/dcerpc"
-	"github.com/RedTeamPentesting/adauth"
-	"github.com/oiweiwei/go-msrpc/msrpc/scmr/svcctl/v2"
-	"github.com/rs/zerolog"
+  "context"
+  "github.com/oiweiwei/go-msrpc/dcerpc"
+  "github.com/oiweiwei/go-msrpc/msrpc/scmr/svcctl/v2"
+)
+
+const (
+  MethodCreate = "create"
+  MethodChange = "change"
+
+  CleanupMethodDelete = "delete"
+  CleanupMethodRevert = "revert"
 )
 
 type Module struct {
-	creds    *adauth.Credential
-	target   *adauth.Target
-	hostname string
+  hostname  string // The target hostname
+  dce       dcerpc.Conn
+  reconnect func(context.Context) error
 
-	log zerolog.Logger
-	dce *dcerpc.DCEClient
-	ctl svcctl.SvcctlClient
+  ctl      svcctl.SvcctlClient
+  scm      *svcctl.Handle
+  services []remoteService
 }
 
 type MethodCreateConfig struct {
-	NoDelete    bool
-	ServiceName string
-	DisplayName string
-	ServiceType uint32
-	StartType   uint32
+  NoDelete    bool
+  ServiceName string
+  DisplayName string
+  ServiceType uint32
+  StartType   uint32
 }
 
-type MethodModifyConfig struct {
-	NoStart     bool
-	ServiceName string
+type MethodChangeConfig struct {
+  NoStart     bool
+  ServiceName string
 }
