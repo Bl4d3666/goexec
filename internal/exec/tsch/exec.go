@@ -8,19 +8,14 @@ import (
   "github.com/FalconOpsLLC/goexec/internal/exec"
   "github.com/FalconOpsLLC/goexec/internal/util"
   "github.com/RedTeamPentesting/adauth"
-  "github.com/oiweiwei/go-msrpc/dcerpc"
-  "github.com/oiweiwei/go-msrpc/midl/uuid"
   "github.com/oiweiwei/go-msrpc/msrpc/tsch/itaskschedulerservice/v1"
   "github.com/rs/zerolog"
   "time"
 )
 
 const (
-  DefaultEndpoint = "ncacn_np:[atsvc]"
-)
-
-var (
-  TschRpcUuid = uuid.MustParse("86D35949-83C9-4044-B424-DB363231FD0C")
+  TschDefaultEndpoint = "ncacn_np:[atsvc]"
+  TschDefaultObject   = "86D35949-83C9-4044-B424-DB363231FD0C"
 )
 
 // Connect to the target & initialize DCE & TSCH clients
@@ -34,7 +29,7 @@ func (mod *Module) Connect(ctx context.Context, creds *adauth.Credential, target
       return fmt.Errorf("invalid configuration for DCE connection method")
     } else {
       // Create DCERPC dialer
-      mod.dce, err = cfg.GetDce(ctx, creds, target, dcerpc.WithObjectUUID(TschRpcUuid))
+      mod.dce, err = cfg.GetDce(ctx, creds, target, TschDefaultEndpoint, TschDefaultObject)
       if err != nil {
         log.Error().Err(err).Msg("Failed to create DCERPC dialer")
         return fmt.Errorf("create DCERPC dialer: %w", err)

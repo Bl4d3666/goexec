@@ -19,10 +19,17 @@ func scmrCmdInit() {
   if err := scmrCmd.MarkPersistentFlagRequired("executable-path"); err != nil {
     panic(err)
   }
-  scmrCmd.AddCommand(scmrChangeCmd)
   scmrCreateCmdInit()
-  scmrCmd.AddCommand(scmrCreateCmd)
+  scmrCmd.AddCommand(scmrChangeCmd)
   scmrChangeCmdInit()
+  scmrCmd.AddCommand(scmrCreateCmd)
+  scmrDeleteCmdInit()
+  scmrCmd.AddCommand(scmrDeleteCmd)
+}
+
+func scmrCreateCmdInit() {
+  scmrCreateCmd.Flags().StringVarP(&scmrServiceName, "service-name", "s", "", "Name of service to create")
+  scmrCreateCmd.Flags().BoolVar(&scmrNoDelete, "no-delete", false, "Don't delete service after execution")
 }
 
 func scmrChangeCmdInit() {
@@ -34,9 +41,11 @@ func scmrChangeCmdInit() {
   }
 }
 
-func scmrCreateCmdInit() {
-  scmrCreateCmd.Flags().StringVarP(&scmrServiceName, "service-name", "s", "", "Name of service to create")
-  scmrCreateCmd.Flags().BoolVar(&scmrNoDelete, "no-delete", false, "Don't delete service after execution")
+func scmrDeleteCmdInit() {
+  scmrDeleteCmd.Flags().StringVarP(&scmrServiceName, "service-name", "s", "", "Name of service to delete")
+  if err := scmrChangeCmd.MarkFlagRequired("service-name"); err != nil {
+    panic(err)
+  }
 }
 
 var (
@@ -57,7 +66,14 @@ var (
   scmrCreateCmd = &cobra.Command{
     Use:   "create [target]",
     Short: "Create & run a new Windows service to gain execution",
-    Args:  needsRpcTarget("cifs"),
+    Long: `Description:
+  The create method calls RCreateServiceW to create a new Windows service with
+  the provided executable & arguments as the lpBinaryPathName
+
+References:
+  https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-scmr/6a8ca926-9477-4dd4-b766-692fab07227e
+`,
+    Args: needsRpcTarget("cifs"),
     Run: func(cmd *cobra.Command, args []string) {
 
       if scmrServiceName == "" {
@@ -137,23 +153,53 @@ var (
           ServiceName: scmrServiceName,
         },
       }
-      log = log.With().
+      ctx = log.With().
         Str("module", "scmr").
         Str("method", "change").
-        Logger()
+        Logger().WithContext(ctx)
 
-      if err := executor.Connect(log.WithContext(ctx), creds, target, connCfg); err != nil {
+      if err := executor.Connect(ctx, creds, target, connCfg); err != nil {
         log.Fatal().Err(err).Msg("Connection failed")
       }
       if !scmrNoDelete {
         defer func() {
-          if err := executor.Cleanup(log.WithContext(ctx), cleanCfg); err != nil {
+          if err := executor.Cleanup(ctx, cleanCfg); err != nil {
             log.Error().Err(err).Msg("Cleanup failed")
           }
         }()
       }
-      if err := executor.Exec(log.WithContext(ctx), execCfg); err != nil {
+      if err := executor.Exec(ctx, execCfg); err != nil {
         log.Error().Err(err).Msg("Execution failed")
+      }
+    },
+  }
+  scmrDeleteCmd = &cobra.Command{
+    Use:   "delete [target]",
+    Short: "Delete an existing Windows service",
+    Long: `Description:
+  
+`,
+    Args: needsRpcTarget("cifs"),
+    Run: func(cmd *cobra.Command, args []string) {
+
+      executor := scmrexec.Module{}
+      cleanCfg := &exec.CleanupConfig{
+        CleanupMethod: scmrexec.CleanupMethodDelete,
+      }
+      connCfg := &exec.ConnectionConfig{
+        ConnectionMethod:       exec.ConnectionMethodDCE,
+        ConnectionMethodConfig: dceConfig,
+      }
+      ctx = log.With().
+        Str("module", "scmr").
+        Str("method", "delete").
+        Logger().WithContext(ctx)
+
+      if err := executor.Connect(ctx, creds, target, connCfg); err != nil {
+        log.Fatal().Err(err).Msg("Connection failed")
+
+      } else if err = executor.Cleanup(ctx, cleanCfg); err != nil {
+        log.Fatal().Err(err).Msg("Delete failed")
       }
     },
   }

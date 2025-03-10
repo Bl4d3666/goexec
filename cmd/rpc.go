@@ -23,7 +23,7 @@ func needsRpcTarget(proto string) func(cmd *cobra.Command, args []string) error 
       if ok, err := regexp.MatchString(`^\w+$`, argDceEpmFilter); err == nil && ok {
         argDceEpmFilter += ":"
       }
-      dceConfig.Endpoint, err = dcerpc.ParseStringBinding(argDceEpmFilter)
+      dceConfig.EpmFilter, err = dcerpc.ParseStringBinding(argDceEpmFilter)
       if err != nil {
         return fmt.Errorf("failed to parse EPM filter: %w", err)
       }

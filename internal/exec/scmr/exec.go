@@ -9,18 +9,13 @@ import (
   "github.com/FalconOpsLLC/goexec/internal/util"
   "github.com/FalconOpsLLC/goexec/internal/windows"
   "github.com/RedTeamPentesting/adauth"
-  "github.com/oiweiwei/go-msrpc/dcerpc"
-  "github.com/oiweiwei/go-msrpc/midl/uuid"
   "github.com/oiweiwei/go-msrpc/msrpc/scmr/svcctl/v2"
   "github.com/rs/zerolog"
 )
 
 const (
-  DefaultEndpoint = "ncacn_np:[srvsvc]"
-)
-
-var (
-  ScmrRpcUuid = uuid.MustParse("367ABB81-9844-35F1-AD32-98F038001003")
+  ScmrDefaultEndpoint = "ncacn_np:[svcctl]"
+  ScmrDefaultObject   = "367ABB81-9844-35F1-AD32-98F038001003"
 )
 
 func (mod *Module) Connect(ctx context.Context, creds *adauth.Credential, target *adauth.Target, ccfg *exec.ConnectionConfig) (err error) {
@@ -41,7 +36,7 @@ func (mod *Module) Connect(ctx context.Context, creds *adauth.Credential, target
       }
       connect := func(ctx context.Context) error {
         // Create DCE connection
-        if mod.dce, err = cfg.GetDce(ctx, creds, target, dcerpc.WithObjectUUID(ScmrRpcUuid)); err != nil {
+        if mod.dce, err = cfg.GetDce(ctx, creds, target, ScmrDefaultEndpoint, ScmrDefaultObject); err != nil {
           log.Error().Err(err).Msg("Failed to initialize DCE dialer")
           return fmt.Errorf("create DCE dialer: %w", err)
         }
@@ -191,7 +186,7 @@ func (mod *Module) Exec(ctx context.Context, ecfg *exec.ExecutionConfig) (err er
         ServiceManager: mod.scm,
         ServiceName:    serviceName,
         DisplayName:    util.RandomStringIfBlank(cfg.DisplayName),
-        BinaryPathName: util.CheckNullString(ecfg.GetRawCommand()),
+        BinaryPathName: ecfg.GetRawCommand(),
         ServiceType:    windows.SERVICE_WIN32_OWN_PROCESS,
         StartType:      windows.SERVICE_DEMAND_START,
         DesiredAccess:  ServiceAllAccess, // TODO: Replace

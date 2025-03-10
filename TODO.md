@@ -6,9 +6,11 @@
 - [X] Add WMI module
 - [X] Clean up TSCH module
 
-- [ ] Clean up SCMR module 
-  - [ ] add dynamic string binding support
-  - [ ] general clean up. Use TSCH & WMI as reference
+- [X] Clean up SCMR module 
+  - [X] add dynamic string binding support
+  - [X] general clean up. Use TSCH & WMI as reference
+
+- [ ] WMI `reg` subcommand - read & edit the registry
 
 - [ ] Add DCOM module
   - [ ] MMC20.Application method

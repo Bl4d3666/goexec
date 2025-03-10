@@ -2,7 +2,9 @@ package exec
 
 import (
   "context"
+  "fmt"
   "github.com/RedTeamPentesting/adauth"
+  "strings"
 )
 
 const (
@@ -42,8 +44,12 @@ type Module interface {
 }
 
 func (cfg *ExecutionConfig) GetRawCommand() string {
-  if cfg.ExecutableArgs != "" {
-    return cfg.ExecutablePath + " " + cfg.ExecutableArgs
+  executable := cfg.ExecutablePath
+  if strings.Contains(executable, " ") {
+    executable = fmt.Sprintf("%q", executable)
   }
-  return cfg.ExecutablePath
+  if cfg.ExecutableArgs != "" {
+    return executable + " " + cfg.ExecutableArgs
+  }
+  return executable
 }
