@@ -36,3 +36,9 @@ type MethodChangeConfig struct {
   NoStart     bool
   ServiceName string
 }
+
+type CleanupMethodDeleteConfig struct {
+  ServiceNames []string
+}
+
+type CleanupMethodRevertConfig struct{}

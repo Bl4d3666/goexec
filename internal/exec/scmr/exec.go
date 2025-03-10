@@ -70,9 +70,14 @@ func (mod *Module) Cleanup(ctx context.Context, ccfg *exec.CleanupConfig) (err e
     Str("func", "Cleanup").Logger()
 
   if len(mod.services) == 0 {
-    return nil
+    if cfg, ok := ccfg.CleanupMethodConfig.(CleanupMethodDeleteConfig); ok && len(cfg.ServiceNames) > 0 {
+      for _, svcName := range cfg.ServiceNames {
+        if svcName != "" {
+          mod.services = append(mod.services, remoteService{name: svcName})
+        }
+      }
+    }
   }
-
   if mod.dce == nil || mod.ctl == nil {
     // Try to reconnect
     if err := mod.reconnect(ctx); err != nil {
@@ -88,11 +93,11 @@ func (mod *Module) Cleanup(ctx context.Context, ccfg *exec.CleanupConfig) (err e
       DatabaseName:  "ServicesActive\x00",
       DesiredAccess: ServiceAllAccess, // TODO: Replace
     }); err != nil {
-      log.Error().Err(err).Msg("Failed to reopen an SCM handle")
+      log.Error().Err(err).Msg("Failed to open an SCM handle")
       return err
     } else {
       mod.scm = resp.SCM
-      log.Info().Msg("Reopened SCM handle")
+      log.Info().Msg("Opened an SCM handle")
     }
   }
 
@@ -106,12 +111,12 @@ func (mod *Module) Cleanup(ctx context.Context, ccfg *exec.CleanupConfig) (err e
         ServiceName:    rsvc.name,
         DesiredAccess:  windows.SERVICE_DELETE | windows.SERVICE_CHANGE_CONFIG,
       }); err != nil {
-        log.Error().Err(err).Msg("Failed to reopen a service handle")
+        log.Error().Err(err).Msg("Failed to open a service handle")
         continue
       } else {
         rsvc.handle = or.Service
       }
-      log.Info().Msg("Service handle reopened")
+      log.Info().Msg("Service handle opened")
     }
     if ccfg.CleanupMethod == CleanupMethodDelete {
       // Delete the service

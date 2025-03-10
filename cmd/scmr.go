@@ -5,6 +5,7 @@ import (
   "github.com/FalconOpsLLC/goexec/internal/util"
   "github.com/FalconOpsLLC/goexec/internal/windows"
   "github.com/RedTeamPentesting/adauth"
+  "github.com/oiweiwei/go-msrpc/dcerpc"
   "github.com/spf13/cobra"
 
   scmrexec "github.com/FalconOpsLLC/goexec/internal/exec/scmr"
@@ -12,48 +13,51 @@ import (
 
 func scmrCmdInit() {
   registerRpcFlags(scmrCmd)
-  scmrCmd.PersistentFlags().StringVarP(&executablePath, "executable-path", "f", "", "Full path to remote Windows executable")
-  scmrCmd.PersistentFlags().StringVarP(&executableArgs, "args", "a", "", "Arguments to pass to executable")
-  scmrCmd.PersistentFlags().StringVarP(&scmrServiceName, "service-name", "s", "", "Name of service to create or modify")
-
-  if err := scmrCmd.MarkPersistentFlagRequired("executable-path"); err != nil {
-    panic(err)
-  }
   scmrCreateCmdInit()
-  scmrCmd.AddCommand(scmrChangeCmd)
-  scmrChangeCmdInit()
   scmrCmd.AddCommand(scmrCreateCmd)
+  scmrChangeCmdInit()
+  scmrCmd.AddCommand(scmrChangeCmd)
   scmrDeleteCmdInit()
   scmrCmd.AddCommand(scmrDeleteCmd)
 }
 
 func scmrCreateCmdInit() {
+  scmrCreateCmd.Flags().StringVarP(&scmrDisplayName, "display-name", "n", "", "Display name of service to create")
   scmrCreateCmd.Flags().StringVarP(&scmrServiceName, "service-name", "s", "", "Name of service to create")
   scmrCreateCmd.Flags().BoolVar(&scmrNoDelete, "no-delete", false, "Don't delete service after execution")
+  scmrCreateCmd.Flags().BoolVar(&scmrNoStart, "no-start", false, "Don't start service")
+  scmrCreateCmd.Flags().StringVarP(&executablePath, "executable-path", "f", "", "Full path to a remote Windows executable file")
+  scmrCreateCmd.Flags().StringVarP(&executableArgs, "args", "a", "", "Arguments to pass to the executable")
+  if err := scmrCreateCmd.MarkFlagRequired("executable-path"); err != nil {
+    panic(err)
+  }
 }
 
 func scmrChangeCmdInit() {
   scmrChangeCmd.Flags().StringVarP(&scmrDisplayName, "display-name", "n", "", "Display name of service to create")
   scmrChangeCmd.Flags().BoolVar(&scmrNoStart, "no-start", false, "Don't start service")
   scmrChangeCmd.Flags().StringVarP(&scmrServiceName, "service-name", "s", "", "Name of service to modify")
+  scmrChangeCmd.Flags().StringVarP(&executablePath, "executable-path", "f", "", "Full path to remote Windows executable")
+  scmrChangeCmd.Flags().StringVarP(&executableArgs, "args", "a", "", "Arguments to pass to executable")
   if err := scmrChangeCmd.MarkFlagRequired("service-name"); err != nil {
     panic(err)
   }
 }
 
 func scmrDeleteCmdInit() {
-  scmrDeleteCmd.Flags().StringVarP(&scmrServiceName, "service-name", "s", "", "Name of service to delete")
-  if err := scmrChangeCmd.MarkFlagRequired("service-name"); err != nil {
+  scmrDeleteCmd.Flags().StringArrayVarP(&scmrServiceNames, "service-name", "s", scmrServiceNames, "Name of service(s) to delete")
+  if err := scmrDeleteCmd.MarkFlagRequired("service-name"); err != nil {
     panic(err)
   }
 }
 
 var (
   // scmr arguments
-  scmrServiceName string
-  scmrDisplayName string
-  scmrNoDelete    bool
-  scmrNoStart     bool
+  scmrServiceName  string
+  scmrServiceNames []string
+  scmrDisplayName  string
+  scmrNoDelete     bool
+  scmrNoStart      bool
 
   creds  *adauth.Credential
   target *adauth.Target
@@ -90,7 +94,8 @@ References:
 
       executor := scmrexec.Module{}
       cleanCfg := &exec.CleanupConfig{
-        CleanupMethod: scmrexec.CleanupMethodDelete,
+        CleanupMethod:       scmrexec.CleanupMethodDelete,
+        CleanupMethodConfig: scmrexec.CleanupMethodDeleteConfig{},
       }
       connCfg := &exec.ConnectionConfig{
         ConnectionMethod:       exec.ConnectionMethodDCE,
@@ -137,7 +142,8 @@ References:
 
       executor := scmrexec.Module{}
       cleanCfg := &exec.CleanupConfig{
-        CleanupMethod: scmrexec.CleanupMethodRevert,
+        CleanupMethod:       scmrexec.CleanupMethodRevert,
+        CleanupMethodConfig: scmrexec.CleanupMethodRevertConfig{},
       }
       connCfg := &exec.ConnectionConfig{
         ConnectionMethod:       exec.ConnectionMethodDCE,
@@ -177,14 +183,16 @@ References:
     Use:   "delete [target]",
     Short: "Delete an existing Windows service",
     Long: `Description:
-  
+TODO
 `,
     Args: needsRpcTarget("cifs"),
     Run: func(cmd *cobra.Command, args []string) {
+      dceConfig.DceOptions = append(dceConfig.DceOptions, dcerpc.WithInsecure())
 
       executor := scmrexec.Module{}
       cleanCfg := &exec.CleanupConfig{
-        CleanupMethod: scmrexec.CleanupMethodDelete,
+        CleanupMethod:       scmrexec.CleanupMethodDelete,
+        CleanupMethodConfig: scmrexec.CleanupMethodDeleteConfig{ServiceNames: scmrServiceNames},
       }
       connCfg := &exec.ConnectionConfig{
         ConnectionMethod:       exec.ConnectionMethodDCE,
