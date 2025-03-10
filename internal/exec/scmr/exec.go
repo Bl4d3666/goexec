@@ -27,7 +27,6 @@ func (mod *Module) Connect(ctx context.Context, creds *adauth.Credential, target
     if cfg, ok := ccfg.ConnectionMethodConfig.(dce.ConnectionMethodDCEConfig); !ok {
       return fmt.Errorf("invalid configuration for DCE connection method")
     } else {
-
       // Fetch target hostname - for opening SCM handle
       if mod.hostname, err = target.Hostname(ctx); err != nil {
         log.Debug().Err(err).Msg("Failed to get target hostname")
@@ -157,7 +156,6 @@ func (mod *Module) Cleanup(ctx context.Context, ccfg *exec.CleanupConfig) (err e
 
 func (mod *Module) Exec(ctx context.Context, ecfg *exec.ExecutionConfig) (err error) {
 
-  //vctx := context.WithoutCancel(ctx)
   log := zerolog.Ctx(ctx).With().
     Str("method", ecfg.ExecutionMethod).
     Str("func", "Exec").Logger()

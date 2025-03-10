@@ -26,7 +26,7 @@ type ConnectionMethodDCEConfig struct {
 
 func (cfg *ConnectionMethodDCEConfig) GetDce(ctx context.Context, cred *adauth.Credential, target *adauth.Target, endpoint, object string, opts ...dcerpc.Option) (cc dcerpc.Conn, err error) {
   dceOpts := append(opts, cfg.DceOptions...)
-  epmOpts := append(opts, cfg.EpmOptions...)
+  epmOpts := cfg.EpmOptions
 
   log := zerolog.Ctx(ctx).With().
     Str("client", "DCERPC").Logger()
