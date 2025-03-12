@@ -14,26 +14,23 @@ import (
 )
 
 type ConnectionMethodDCEConfig struct {
-  NoEpm      bool // NoEpm disables EPM
-  EpmAuto    bool // EpmAuto will find any suitable endpoint, without any filter
-  Insecure   bool
-  NoSign     bool
+  NoEpm      bool                  // NoEpm disables EPM
+  EpmAuto    bool                  // EpmAuto will find any suitable endpoint, without any filter
   Endpoint   *dcerpc.StringBinding // Endpoint is the explicit endpoint passed to dcerpc.WithEndpoint for use without EPM
   EpmFilter  *dcerpc.StringBinding // EpmFilter is the rough filter used to pick an EPM endpoint
+  Options    []dcerpc.Option       // Options stores the options that will be passed to all dialers
   DceOptions []dcerpc.Option       // DceOptions are the options passed to dcerpc.Dial
   EpmOptions []dcerpc.Option       // EpmOptions are the options passed to epm.EndpointMapper
 }
 
-func (cfg *ConnectionMethodDCEConfig) GetDce(ctx context.Context, cred *adauth.Credential, target *adauth.Target, endpoint, object string, opts ...dcerpc.Option) (cc dcerpc.Conn, err error) {
-  dceOpts := append(opts, cfg.DceOptions...)
-  epmOpts := cfg.EpmOptions
+func (cfg *ConnectionMethodDCEConfig) GetDce(ctx context.Context, cred *adauth.Credential, target *adauth.Target, endpoint, object string, arbOpts ...dcerpc.Option) (cc dcerpc.Conn, err error) {
 
   log := zerolog.Ctx(ctx).With().
     Str("client", "DCERPC").Logger()
 
   // Mandatory logging
-  dceOpts = append(dceOpts, dcerpc.WithLogger(log))
-  epmOpts = append(epmOpts, dcerpc.WithLogger(log))
+  dceOpts := append(append(cfg.Options, arbOpts...), append(cfg.DceOptions, dcerpc.WithLogger(log))...)
+  epmOpts := append(cfg.Options, append(cfg.EpmOptions, dcerpc.WithLogger(log))...)
 
   ctx = gssapi.NewSecurityContext(ctx)
   auth, err := dcerpcauth.AuthenticationOptions(ctx, cred, target, &dcerpcauth.Options{})

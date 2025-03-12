@@ -1,0 +1,19 @@
+FROM golang:1.24-alpine AS goexec-builder
+LABEL builder="true"
+
+WORKDIR /go/src/
+
+COPY cmd/ cmd/
+COPY internal/ internal/
+COPY main.go go.mod go.sum ./
+
+ENV CGO_ENABLED=0
+
+RUN go mod download
+RUN go build -ldflags="-s -w" -o /go/bin/goexec
+
+FROM alpine:3 AS goexec
+COPY --from="goexec-builder" /go/bin/goexec /usr/local/bin/goexec
+
+WORKDIR /io
+ENTRYPOINT ["/usr/local/bin/goexec"]

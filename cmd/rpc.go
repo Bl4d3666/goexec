@@ -6,6 +6,7 @@ import (
   "github.com/oiweiwei/go-msrpc/dcerpc"
   "github.com/spf13/cobra"
   "github.com/spf13/pflag"
+  "golang.org/x/net/proxy"
   "regexp"
 )
 
@@ -14,6 +15,15 @@ func needsRpcTarget(proto string) func(cmd *cobra.Command, args []string) error 
 
     if err = needsTarget(proto)(cmd, args); err != nil {
       return err
+    }
+    if proxyUrl != nil {
+      if netDialer, err := proxy.FromURL(proxyUrl, nil); err != nil {
+        return fmt.Errorf("proxy dialer from URL: %w", err)
+      } else if dceDialer, ok := netDialer.(dcerpc.Dialer); !ok {
+        return fmt.Errorf("failed to cast %T to dcerpc.Dialer", netDialer)
+      } else {
+        dceConfig.Options = append(dceConfig.Options, dcerpc.WithDialer(dceDialer))
+      }
     }
     if argDceStringBinding != "" {
       dceConfig.Endpoint, err = dcerpc.ParseStringBinding(argDceStringBinding)

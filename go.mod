@@ -9,6 +9,7 @@ require (
 	github.com/rs/zerolog v1.33.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/pflag v1.0.6
+	golang.org/x/net v0.35.0
 )
 
 require (
@@ -27,7 +28,6 @@ require (
 	github.com/oiweiwei/go-smb2.fork v1.0.0 // indirect
 	github.com/oiweiwei/gokrb5.fork/v9 v9.0.2 // indirect
 	golang.org/x/crypto v0.35.0 // indirect
-	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
 	software.sslmate.com/src/go-pkcs12 v0.5.0 // indirect

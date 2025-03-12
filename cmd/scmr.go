@@ -77,7 +77,7 @@ var (
 References:
   https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-scmr/6a8ca926-9477-4dd4-b766-692fab07227e
 `,
-    Args: needsRpcTarget("cifs"),
+    Args: needs(needsTarget("host"), needsRpcTarget("host")),
     Run: func(cmd *cobra.Command, args []string) {
 
       if scmrServiceName == "" {
@@ -137,7 +137,7 @@ References:
   scmrChangeCmd = &cobra.Command{
     Use:   "change [target]",
     Short: "Change an existing Windows service to gain execution",
-    Args:  needsRpcTarget("cifs"),
+    Args:  needs(needsTarget("host"), needsRpcTarget("host")),
     Run: func(cmd *cobra.Command, args []string) {
 
       executor := scmrexec.Module{}
@@ -185,7 +185,7 @@ References:
     Long: `Description:
 TODO
 `,
-    Args: needsRpcTarget("cifs"),
+    Args: needs(needsTarget("host"), needsRpcTarget("host")),
     Run: func(cmd *cobra.Command, args []string) {
       dceConfig.DceOptions = append(dceConfig.DceOptions, dcerpc.WithInsecure())
 
