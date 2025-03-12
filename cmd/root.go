@@ -69,6 +69,8 @@ func needsTarget(proto string) func(cmd *cobra.Command, args []string) error {
 func init() {
 	ctx = context.Background()
 
+	cobra.EnableCommandSorting = false
+
 	rootCmd.InitDefaultVersionFlag()
 	rootCmd.InitDefaultHelpCmd()
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
