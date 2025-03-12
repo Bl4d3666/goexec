@@ -17,7 +17,12 @@ var (
 	ctx      context.Context
 	authOpts *adauth.Options
 
-	debug            bool
+	hostname string
+
+	// Root flags
+	debug bool
+
+	// Generic flags
 	command          string
 	executable       string
 	executablePath   string
@@ -61,6 +66,9 @@ func needsTarget(proto string) func(cmd *cobra.Command, args []string) error {
 		}
 		if target == nil {
 			return fmt.Errorf("no target supplied")
+		}
+		if hostname, err = target.Hostname(ctx); err != nil {
+			log.Debug().Err(err).Msg("Could not get target hostname")
 		}
 		return
 	}

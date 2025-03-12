@@ -87,7 +87,7 @@ var (
 
   tschCmd = &cobra.Command{
     Use:   "tsch",
-    Short: "Establish execution via TSCH (ITaskSchedulerService)",
+    Short: "Establish execution via TSCH",
     Args:  cobra.NoArgs,
   }
   tschRegisterCmd = &cobra.Command{

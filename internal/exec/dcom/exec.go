@@ -25,9 +25,8 @@ const (
 var (
 	MmcUuid          = uuid.MustParse("49B2791A-B1AE-4C90-9B8E-E860BA07F889")
 	ShellWindowsUuid = uuid.MustParse("9BA05972-F6A8-11CF-A442-00A0C90A8F39")
-	//RandUuid         = uuid.MustParse("dc95cac4-0d74-49eb-8947-570ad52ef215")
-	RandCid      = dcom.CID(*dtyp.GUIDFromUUID(uuid.MustParse(guuid.NewString())))
-	IDispatchIID = &dcom.IID{
+	RandCid          = dcom.CID(*dtyp.GUIDFromUUID(uuid.MustParse(guuid.NewString())))
+	IDispatchIID     = &dcom.IID{
 		Data1: 0x20400,
 		Data2: 0x0,
 		Data3: 0x0,

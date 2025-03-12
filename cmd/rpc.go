@@ -12,6 +12,9 @@ import (
 func needsRpcTarget(proto string) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) (err error) {
 
+		if err = needsTarget(proto)(cmd, args); err != nil {
+			return err
+		}
 		if argDceStringBinding != "" {
 			dceConfig.Endpoint, err = dcerpc.ParseStringBinding(argDceStringBinding)
 			if err != nil {
@@ -29,6 +32,9 @@ func needsRpcTarget(proto string) func(cmd *cobra.Command, args []string) error 
 				return fmt.Errorf("failed to parse EPM filter: %w", err)
 			}
 		}
+		if hostname != "" {
+			dceConfig.DceOptions = append(dceConfig.DceOptions, dcerpc.WithTargetName(fmt.Sprintf("%s/%s", proto, hostname)))
+		}
 		if !argDceNoSign {
 			dceConfig.DceOptions = append(dceConfig.DceOptions, dcerpc.WithSign())
 			dceConfig.EpmOptions = append(dceConfig.EpmOptions, dcerpc.WithSign())
@@ -39,7 +45,7 @@ func needsRpcTarget(proto string) func(cmd *cobra.Command, args []string) error 
 			dceConfig.DceOptions = append(dceConfig.DceOptions, dcerpc.WithSeal(), dcerpc.WithSecurityLevel(dcerpc.AuthLevelPktPrivacy))
 			dceConfig.EpmOptions = append(dceConfig.EpmOptions, dcerpc.WithSeal(), dcerpc.WithSecurityLevel(dcerpc.AuthLevelPktPrivacy))
 		}
-		return needsTarget(proto)(cmd, args)
+		return nil
 	}
 }
 
