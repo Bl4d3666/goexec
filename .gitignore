@@ -1,3 +1,8 @@
 /.idea
 /goexec
 /patch
+/.local
+
+# For now
+/go.work
+/go.work.sum

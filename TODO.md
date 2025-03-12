@@ -10,14 +10,13 @@
   - [X] add dynamic string binding support
   - [X] general clean up. Use TSCH & WMI as reference
 
-- [ ] WMI `reg` subcommand - read & edit the registry
-
-- [ ] Add DCOM module
-  - [ ] MMC20.Application method
+- [X] Add DCOM module
+  - [X] MMC20.Application method
 
 - [ ] Add psexec module (RemComSvc)
   - [ ] Add support for dynamic service executable (of course)
 
+- [ ] WMI `reg` subcommand - read & edit the registry
 
 ### Other
  
