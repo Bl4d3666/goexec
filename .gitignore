@@ -1,8 +1,9 @@
-/.idea
+.idea
+.logs
+.local
 /goexec
 /patch
-/.local
-
-# For now
 /go.work
 /go.work.sum
+*.pcap
+*.pcapng
