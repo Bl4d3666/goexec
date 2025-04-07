@@ -27,12 +27,6 @@
 - [ ] WMI `reg` subcommand - read & edit the registry
 - [ ] File transfer functionality
 
-### WinRM
-
-- [ ] Add basic WinRM module - https://github.com/bryanmcnulty/winrm
-  - [ ] File transfer functionality
-  - [ ] Shell functionality
-
 ### Other
 
 - [X] Add proxy support - see https://github.com/oiweiwei/go-msrpc/issues/21
@@ -46,3 +40,9 @@
 - [ ] Add Go tests
 - [ ] ability to specify multiple targets
 - [ ] Standardize modules to interface for future use
+
+### WinRM
+
+- [ ] Add basic WinRM module - https://github.com/bryanmcnulty/winrm
+    - [ ] File transfer functionality
+    - [ ] Shell functionality
