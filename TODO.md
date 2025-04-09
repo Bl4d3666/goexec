@@ -23,7 +23,7 @@
 ### WMI
 
 - [X] Add WMI module
-- [ ] Clean up WMI module
+- [X] Clean up WMI module
 - [ ] WMI `reg` subcommand - read & edit the registry
 - [ ] File transfer functionality
 

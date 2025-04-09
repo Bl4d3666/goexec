@@ -17,8 +17,9 @@ func wmiCmdInit() {
 }
 
 func wmiCallCmdInit() {
-  wmiCallCmd.Flags().StringVarP(&wmi.Method, "method", "m", "", `WMI Method to call (i.e. "Create")`)
+  wmiCallCmd.Flags().StringVarP(&dceConfig.Resource, "namespace", "n", "//./root/cimv2", "WMI namespace")
   wmiCallCmd.Flags().StringVarP(&wmi.Class, "class", "C", "", `WMI class to instantiate (i.e. "Win32_Process")`)
+  wmiCallCmd.Flags().StringVarP(&wmi.Method, "method", "m", "", `WMI Method to call (i.e. "Create")`)
   wmiCallCmd.Flags().StringVarP(&wmi.Args, "args", "A", "{}", `WMI Method argument(s) in JSON dictionary format (i.e. {"CommandLine":"calc.exe"})`)
   if err := wmiCallCmd.MarkFlagRequired("method"); err != nil {
     panic(err)
@@ -35,10 +36,9 @@ func wmiProcessCmdInit() {
 
 var (
   wmi struct {
-    Namespace string // TODO
-    Class     string
-    Method    string
-    Args      string
+    Class  string
+    Method string
+    Args   string
   }
   wmiMethodArgsMap map[string]any
 
@@ -64,7 +64,6 @@ References:
       return
     }),
     Run: func(cmd *cobra.Command, args []string) {
-
       executor := wmiexec.Module{}
       cleanCfg := &exec.CleanupConfig{} // TODO
       connCfg := &exec.ConnectionConfig{

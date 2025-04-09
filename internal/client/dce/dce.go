@@ -21,6 +21,7 @@ type ConnectionMethodDCEConfig struct {
   Options    []dcerpc.Option       // Options stores the options that will be passed to all dialers
   DceOptions []dcerpc.Option       // DceOptions are the options passed to dcerpc.Dial
   EpmOptions []dcerpc.Option       // EpmOptions are the options passed to epm.EndpointMapper
+  Resource   string                // Resource stores the target network resource (usually for DCOM)
 }
 
 func (cfg *ConnectionMethodDCEConfig) GetDce(ctx context.Context, cred *adauth.Credential, target *adauth.Target, endpoint, object string, arbOpts ...dcerpc.Option) (cc dcerpc.Conn, err error) {
