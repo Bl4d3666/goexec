@@ -23,7 +23,8 @@ var (
   proxyUrl *url.URL
 
   // Root flags
-  debug bool
+  unsafe bool // not implemented
+  debug  bool
 
   // Generic flags
   command          string
@@ -103,6 +104,7 @@ func init() {
   rootCmd.InitDefaultHelpCmd()
   rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
   rootCmd.PersistentFlags().StringVarP(&proxyStr, "proxy", "x", "", "Proxy URL")
+  rootCmd.PersistentFlags().BoolVar(&unsafe, "unsafe", false, "[NOT IMPLEMENTED] Don't ask for permission to run unsafe actions")
 
   authOpts = &adauth.Options{Debug: log.Debug().Msgf}
   authOpts.RegisterFlags(rootCmd.PersistentFlags())

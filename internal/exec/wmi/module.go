@@ -16,7 +16,7 @@ type Module struct {
   sc  iwbemservices.ServicesClient
 }
 
-type MethodCustomConfig struct {
+type MethodCallConfig struct {
   Class     string
   Method    string
   Arguments map[string]any
@@ -28,6 +28,6 @@ type MethodProcessConfig struct {
 }
 
 const (
-  MethodCustom  = "custom"
+  MethodCall    = "call"
   MethodProcess = "process"
 )

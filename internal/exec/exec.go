@@ -28,8 +28,7 @@ type ExecutionConfig struct {
 
   ExecutionMethod       string // ExecutionMethod represents the specific execution strategy used by the module.
   ExecutionMethodConfig interface{}
-  //ExecutionOutput       string      // not implemented
-  //ExecutionOutputConfig interface{} // not implemented
+  ReturnOutput          bool
 }
 
 type ShellConfig struct {

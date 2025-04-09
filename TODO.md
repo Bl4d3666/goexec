@@ -30,9 +30,9 @@
 ### Other
 
 - [X] Add proxy support - see https://github.com/oiweiwei/go-msrpc/issues/21
+- [ ] `--unsafe` option - allow unsafe OPSEC (i.e. fetching execution output via file write/read)
 - [ ] Descriptions for all modules and methods
 - [ ] Add SMB file transfer interface
-- [ ] `--ctf` option - allow unsafe OPSEC (i.e. fetching execution output via file write/read)
 - [ ] README
 
 ## Resolve Eventually

@@ -5,6 +5,7 @@ import (
   "encoding/json"
   "errors"
   "fmt"
+  "github.com/FalconOpsLLC/goexec/internal/client/dce"
   "github.com/FalconOpsLLC/goexec/internal/exec"
   "github.com/RedTeamPentesting/adauth"
   "github.com/RedTeamPentesting/adauth/dcerpcauth"
@@ -21,6 +22,7 @@ import (
 const (
   ProtocolSequenceRPC uint16 = 7
   ProtocolSequenceNP  uint16 = 15
+  DefaultWmiEndpoint  string = "ncacn_ip_tcp:[135]"
 )
 
 var (
@@ -45,7 +47,74 @@ func (mod *Module) Cleanup(ctx context.Context, _ *exec.CleanupConfig) (err erro
   return
 }
 
-func (mod *Module) Connect(ctx context.Context, creds *adauth.Credential, target *adauth.Target, _ *exec.ConnectionConfig) (err error) {
+func (mod *Module) Connect(ctx context.Context, creds *adauth.Credential, target *adauth.Target, ccfg *exec.ConnectionConfig) (err error) {
+
+  log := zerolog.Ctx(ctx).With().
+    Str("method", ccfg.ConnectionMethod).
+    Str("func", "Connect").Logger()
+
+  if cfg, ok := ccfg.ConnectionMethodConfig.(dce.ConnectionMethodDCEConfig); !ok {
+    return errors.New("invalid configuration for DCE connection method")
+  } else {
+    var dceOpts []dcerpc.Option
+
+    // Create DCE connection
+    if mod.dce, err = cfg.GetDce(ctx, creds, target, DefaultWmiEndpoint, "", dceOpts...); err != nil {
+      log.Error().Err(err).Msg("Failed to initialize DCE dialer")
+      return fmt.Errorf("create DCE dialer: %w", err)
+    }
+    ia, err := iactivation.NewActivationClient(ctx, mod.dce)
+    if err != nil {
+      log.Error().Err(err).Msg("Failed to create activation client")
+      return fmt.Errorf("create activation client: %w", err)
+    }
+    act, err := ia.RemoteActivation(ctx, &iactivation.RemoteActivationRequest{
+      ORPCThis:                   ORPCThis,
+      ClassID:                    wmi.Level1LoginClassID.GUID(),
+      IIDs:                       []*dcom.IID{iwbemlevel1login.Level1LoginIID},
+      RequestedProtocolSequences: []uint16{ProtocolSequenceRPC, ProtocolSequenceNP}, // TODO: dynamic
+    })
+    if err != nil {
+      return fmt.Errorf("request remote activation: %w", err)
+    }
+    if act.HResult != 0 {
+      return fmt.Errorf("remote activation failed with code %d", act.HResult)
+    }
+    retBinds := act.OXIDBindings.GetStringBindings()
+    if len(act.InterfaceData) < 1 || len(retBinds) < 1 {
+      return errors.New("remote activation failed")
+    }
+    ipid := act.InterfaceData[0].GetStandardObjectReference().Std.IPID
+    for _, sb := range retBinds {
+      //sb.NetworkAddr = target.AddressWithoutPort() // TODO: check if sb.NetworkAddr contains the port
+      dceOpts = append(dceOpts, dcerpc.WithEndpoint(sb.String()))
+    }
+
+    if mod.dce, err = cfg.GetDce(ctx, creds, target, DefaultWmiEndpoint, "", dceOpts...); err != nil {
+      log.Error().Err(err).Msg("Failed to initialize secondary DCE dialer")
+    }
+    loginClient, err := iwbemlevel1login.NewLevel1LoginClient(ctx, mod.dce, dcom.WithIPID(ipid))
+    if err != nil {
+      return fmt.Errorf("initialize wbem login client: %w", err)
+    }
+    login, err := loginClient.NTLMLogin(ctx, &iwbemlevel1login.NTLMLoginRequest{
+      This:            ORPCThis,
+      NetworkResource: "//./root/cimv2", // TODO: make this dynamic
+    })
+    if err != nil {
+      return fmt.Errorf("ntlm login: %w", err)
+    }
+
+    mod.sc, err = iwbemservices.NewServicesClient(ctx, mod.dce, dcom.WithIPID(login.Namespace.InterfacePointer().IPID()))
+    if err != nil {
+      return fmt.Errorf("iwbemservices.NewServicesClient: %w", err)
+    }
+  }
+
+  return
+}
+
+func (mod *Module) _Connect(ctx context.Context, creds *adauth.Credential, target *adauth.Target, _ *exec.ConnectionConfig) (err error) {
 
   var baseOpts, authOpts []dcerpc.Option
   var ipid *dcom.IPID // This will store the IPID of the remote instance
@@ -157,8 +226,8 @@ func (mod *Module) Exec(ctx context.Context, ecfg *exec.ExecutionConfig) (err er
     Str("module", "tsch").
     Str("method", ecfg.ExecutionMethod).Logger()
 
-  if ecfg.ExecutionMethod == MethodCustom {
-    if cfg, ok := ecfg.ExecutionMethodConfig.(MethodCustomConfig); !ok {
+  if ecfg.ExecutionMethod == MethodCall {
+    if cfg, ok := ecfg.ExecutionMethodConfig.(MethodCallConfig); !ok {
       return errors.New("invalid execution configuration")
 
     } else {

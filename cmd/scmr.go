@@ -28,6 +28,7 @@ func scmrCreateCmdInit() {
   scmrCreateCmd.Flags().BoolVar(&scmrNoStart, "no-start", false, "Don't start service")
   scmrCreateCmd.Flags().StringVarP(&executablePath, "executable-path", "f", "", "Full path to a remote Windows executable file")
   scmrCreateCmd.Flags().StringVarP(&executableArgs, "args", "a", "", "Arguments to pass to the executable")
+  scmrCreateCmd.Flags().BoolVarP(&scmrOutput, "output", "O", false, "Fetch program output")
   if err := scmrCreateCmd.MarkFlagRequired("executable-path"); err != nil {
     panic(err)
   }
@@ -58,6 +59,7 @@ var (
   scmrDisplayName  string
   scmrNoDelete     bool
   scmrNoStart      bool
+  scmrOutput       bool
 
   creds  *adauth.Credential
   target *adauth.Target
@@ -104,6 +106,7 @@ References:
       execCfg := &exec.ExecutionConfig{
         ExecutablePath:  executablePath,
         ExecutableArgs:  executableArgs,
+        ReturnOutput:    scmrOutput,
         ExecutionMethod: scmrexec.MethodCreate,
 
         ExecutionMethodConfig: scmrexec.MethodCreateConfig{
