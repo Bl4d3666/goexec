@@ -32,6 +32,7 @@ func tschDemandCmdInit() {
   tschDemandCmd.Flags().StringVarP(&executableArgs, "args", "a", "", "Arguments to pass to executable")
   tschDemandCmd.Flags().StringVarP(&tschTaskName, "name", "n", "", "Target task name")
   tschDemandCmd.Flags().BoolVar(&tschNoDelete, "no-delete", false, "Don't delete task after execution")
+  tschDemandCmd.Flags().Uint32Var(&tschSessionId, "session-id", 0, "Hijack existing session")
   if err := tschDemandCmd.MarkFlagRequired("executable"); err != nil {
     panic(err)
   }
@@ -41,9 +42,9 @@ func tschRegisterCmdInit() {
   tschRegisterCmd.Flags().StringVarP(&executable, "executable", "e", "", "Remote Windows executable to invoke")
   tschRegisterCmd.Flags().StringVarP(&executableArgs, "args", "a", "", "Arguments to pass to executable")
   tschRegisterCmd.Flags().StringVarP(&tschTaskName, "name", "n", "", "Target task name")
-  tschRegisterCmd.Flags().DurationVar(&tschStopDelay, "delay-stop", time.Duration(5*time.Second), "Delay between task execution and termination. This will not stop the process spawned by the task")
-  tschRegisterCmd.Flags().DurationVarP(&tschDelay, "delay-start", "d", time.Duration(5*time.Second), "Delay between task registration and execution")
-  tschRegisterCmd.Flags().DurationVarP(&tschDeleteDelay, "delay-delete", "D", time.Duration(0*time.Second), "Delay between task termination and deletion")
+  tschRegisterCmd.Flags().DurationVar(&tschStopDelay, "delay-stop", 5*time.Second, "Delay between task execution and termination. This will not stop the process spawned by the task")
+  tschRegisterCmd.Flags().DurationVarP(&tschDelay, "delay-start", "d", 5*time.Second, "Delay between task registration and execution")
+  tschRegisterCmd.Flags().DurationVarP(&tschDeleteDelay, "delay-delete", "D", 0*time.Second, "Delay between task termination and deletion")
   tschRegisterCmd.Flags().BoolVar(&tschNoDelete, "no-delete", false, "Don't delete task after execution")
   tschRegisterCmd.Flags().BoolVar(&tschCallDelete, "call-delete", false, "Directly call SchRpcDelete to delete task")
 
@@ -74,6 +75,7 @@ func tschArgs(principal string) func(cmd *cobra.Command, args []string) error {
 }
 
 var (
+  tschSessionId   uint32
   tschNoDelete    bool
   tschCallDelete  bool
   tschDeleteDelay time.Duration
@@ -175,8 +177,9 @@ References:
         ExecutionMethod: tschexec.MethodDemand,
 
         ExecutionMethodConfig: tschexec.MethodDemandConfig{
-          NoDelete: tschNoDelete,
-          TaskPath: tschTaskPath,
+          NoDelete:  tschNoDelete,
+          TaskPath:  tschTaskPath,
+          SessionId: tschSessionId,
         },
       }
       if err := module.Connect(log.WithContext(ctx), creds, target, connCfg); err != nil {

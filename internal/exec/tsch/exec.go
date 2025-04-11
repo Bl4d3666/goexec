@@ -145,10 +145,12 @@ func (mod *Module) Exec(ctx context.Context, ecfg *exec.ExecutionConfig) (err er
 
     } else {
       taskPath := cfg.TaskPath
+
       if taskPath == "" {
         log.Debug().Msg("Task path not defined. Using random path")
         taskPath = `\` + util.RandomString()
       }
+
       st := newSettings(true, true, false)
       tk := newTask(st, nil, triggers{}, ecfg.ExecutableName, ecfg.ExecutableArgs)
 
@@ -157,12 +159,20 @@ func (mod *Module) Exec(ctx context.Context, ecfg *exec.ExecutionConfig) (err er
       if err != nil {
         return fmt.Errorf("call registerTask: %w", err)
       }
+
       if !cfg.NoDelete {
         defer mod.deleteTask(ctx, taskPath)
       }
+
+      var flags uint32
+
+      if cfg.SessionId != 0 {
+        flags |= 4
+      }
       _, err := mod.tsch.Run(ctx, &itaskschedulerservice.RunRequest{
-        Path:  taskPath,
-        Flags: 0, // Maybe we want to use these?
+        Path:      taskPath,
+        Flags:     flags,
+        SessionID: cfg.SessionId,
       })
       if err != nil {
         log.Error().Str("task", taskPath).Err(err).Msg("Failed to run task")
@@ -170,6 +180,7 @@ func (mod *Module) Exec(ctx context.Context, ecfg *exec.ExecutionConfig) (err er
       }
       log.Info().Str("task", taskPath).Msg("Started task")
     }
+
   } else {
     return fmt.Errorf("method '%s' not implemented", ecfg.ExecutionMethod)
   }

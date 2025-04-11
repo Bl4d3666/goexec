@@ -14,9 +14,8 @@ type Module struct {
 }
 
 type MethodRegisterConfig struct {
-  NoDelete   bool
-  CallDelete bool
-  //TaskName    string
+  NoDelete    bool
+  CallDelete  bool
   TaskPath    string
   StartDelay  time.Duration
   StopDelay   time.Duration
@@ -26,6 +25,7 @@ type MethodRegisterConfig struct {
 type MethodDemandConfig struct {
   NoDelete    bool
   CallDelete  bool
+  SessionId   uint32
   TaskName    string
   TaskPath    string
   StopDelay   time.Duration
