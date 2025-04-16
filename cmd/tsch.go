@@ -1,102 +1,147 @@
 package cmd
 
 import (
-  "fmt"
-  "github.com/FalconOpsLLC/goexec/internal/exec"
-  "github.com/FalconOpsLLC/goexec/internal/exec/tsch"
+  "context"
+  "github.com/FalconOpsLLC/goexec/internal/util"
+  "github.com/FalconOpsLLC/goexec/pkg/goexec"
+  tschexec "github.com/FalconOpsLLC/goexec/pkg/goexec/tsch"
+  "github.com/oiweiwei/go-msrpc/ssp/gssapi"
   "github.com/spf13/cobra"
-  "regexp"
+  "io"
+  "os"
   "time"
 )
 
 func tschCmdInit() {
   registerRpcFlags(tschCmd)
 
-  tschDeleteCmdInit()
-  tschCmd.AddCommand(tschDeleteCmd)
-  tschRegisterCmdInit()
-  tschCmd.AddCommand(tschRegisterCmd)
   tschDemandCmdInit()
   tschCmd.AddCommand(tschDemandCmd)
+
+  tschCreateCmdInit()
+  tschCmd.AddCommand(tschCreateCmd)
 }
 
-func tschDeleteCmdInit() {
-  tschDeleteCmd.Flags().StringVarP(&tschTaskPath, "path", "t", "", "Scheduled task path")
-  if err := tschDeleteCmd.MarkFlagRequired("path"); err != nil {
-    panic(err)
+func argsTschTaskIdentifiers(name, path string) error {
+  switch {
+  case path != "":
+    return tschexec.ValidateTaskPath(path)
+  case name != "":
+    return tschexec.ValidateTaskName(name)
+  default:
   }
+  return nil
+}
+
+func argsTschDemand(_ *cobra.Command, _ []string) error {
+  return argsTschTaskIdentifiers(tschDemand.TaskName, tschDemand.TaskPath)
+}
+
+func argsTschCreate(_ *cobra.Command, _ []string) error {
+  return argsTschTaskIdentifiers(tschCreate.TaskName, tschCreate.TaskPath)
 }
 
 func tschDemandCmdInit() {
-  tschDemandCmd.Flags().StringVarP(&executable, "executable", "e", "", "Remote Windows executable to invoke")
-  tschDemandCmd.Flags().StringVarP(&executableArgs, "args", "a", "", "Arguments to pass to executable")
-  tschDemandCmd.Flags().StringVarP(&tschTaskName, "name", "n", "", "Target task name")
-  tschDemandCmd.Flags().BoolVar(&tschNoDelete, "no-delete", false, "Don't delete task after execution")
-  tschDemandCmd.Flags().Uint32Var(&tschSessionId, "session-id", 0, "Hijack existing session")
-  if err := tschDemandCmd.MarkFlagRequired("executable"); err != nil {
-    panic(err)
-  }
+  tschDemandCmd.Flags().StringVarP(&tschDemand.TaskName, "name", "t", "", "Name of task to register")
+  tschDemandCmd.Flags().StringVarP(&tschDemand.TaskPath, "path", "P", "", "Path of task to register")
+  tschDemandCmd.Flags().Uint32Var(&tschDemand.SessionId, "session", 0, "Hijack existing session given the session ID")
+  tschDemandCmd.Flags().BoolVar(&tschDemand.NoDelete, "no-delete", false, "Don't delete task after execution")
+  tschDemandCmd.Flags().StringVar(&tschDemand.UserSid, "sid", "S-1-5-18", "User SID to impersonate")
+
+  registerProcessExecutionArgs(tschDemandCmd)
+  registerExecutionOutputArgs(tschDemandCmd)
+
+  tschDemandCmd.MarkFlagsMutuallyExclusive("name", "path")
 }
 
-func tschRegisterCmdInit() {
-  tschRegisterCmd.Flags().StringVarP(&executable, "executable", "e", "", "Remote Windows executable to invoke")
-  tschRegisterCmd.Flags().StringVarP(&executableArgs, "args", "a", "", "Arguments to pass to executable")
-  tschRegisterCmd.Flags().StringVarP(&tschTaskName, "name", "n", "", "Target task name")
-  tschRegisterCmd.Flags().DurationVar(&tschStopDelay, "delay-stop", 5*time.Second, "Delay between task execution and termination. This will not stop the process spawned by the task")
-  tschRegisterCmd.Flags().DurationVarP(&tschDelay, "delay-start", "d", 5*time.Second, "Delay between task registration and execution")
-  tschRegisterCmd.Flags().DurationVarP(&tschDeleteDelay, "delay-delete", "D", 0*time.Second, "Delay between task termination and deletion")
-  tschRegisterCmd.Flags().BoolVar(&tschNoDelete, "no-delete", false, "Don't delete task after execution")
-  tschRegisterCmd.Flags().BoolVar(&tschCallDelete, "call-delete", false, "Directly call SchRpcDelete to delete task")
+func tschCreateCmdInit() {
+  tschCreateCmd.Flags().StringVarP(&tschCreate.TaskName, "name", "t", "", "Name of task to register")
+  tschCreateCmd.Flags().StringVarP(&tschCreate.TaskPath, "path", "P", "", "Path of task to register")
+  tschCreateCmd.Flags().DurationVar(&tschCreate.StopDelay, "delay-stop", 5*time.Second, "Delay between task execution and termination. This will not stop the process spawned by the task")
+  tschCreateCmd.Flags().DurationVar(&tschCreate.StartDelay, "start-delay", 5*time.Second, "Delay between task registration and execution")
+  tschCreateCmd.Flags().DurationVar(&tschCreate.DeleteDelay, "delete-delay", 0*time.Second, "Delay between task termination and deletion")
+  tschCreateCmd.Flags().BoolVar(&tschCreate.NoDelete, "no-delete", false, "Don't delete task after execution")
+  tschCreateCmd.Flags().BoolVar(&tschCreate.CallDelete, "call-delete", false, "Directly call SchRpcDelete to delete task")
+  tschCreateCmd.Flags().StringVar(&tschCreate.UserSid, "sid", "S-1-5-18", "User SID to impersonate")
 
-  tschRegisterCmd.MarkFlagsMutuallyExclusive("no-delete", "delay-delete")
-  tschRegisterCmd.MarkFlagsMutuallyExclusive("no-delete", "call-delete")
-  tschRegisterCmd.MarkFlagsMutuallyExclusive("delay-delete", "call-delete")
+  registerProcessExecutionArgs(tschCreateCmd)
 
-  if err := tschRegisterCmd.MarkFlagRequired("executable"); err != nil {
-    panic(err)
-  }
-}
-
-func tschArgs(principal string) func(cmd *cobra.Command, args []string) error {
-  return func(cmd *cobra.Command, args []string) error {
-    if tschTaskPath != "" && !tschTaskPathRegex.MatchString(tschTaskPath) {
-      return fmt.Errorf("invalid task path: %s", tschTaskPath)
-    }
-    if tschTaskName != "" {
-      if !tschTaskNameRegex.MatchString(tschTaskName) {
-        return fmt.Errorf("invalid task name: %s", tschTaskName)
-
-      } else if tschTaskPath == "" {
-        tschTaskPath = `\` + tschTaskName
-      }
-    }
-    return needsRpcTarget(principal)(cmd, args)
-  }
+  tschCreateCmd.MarkFlagsMutuallyExclusive("name", "path")
 }
 
 var (
-  tschSessionId   uint32
-  tschNoDelete    bool
-  tschCallDelete  bool
-  tschDeleteDelay time.Duration
-  tschStopDelay   time.Duration
-  tschDelay       time.Duration
-  tschTaskName    string
-  tschTaskPath    string
-
-  tschTaskPathRegex = regexp.MustCompile(`^\\[^ :/\\][^:/]*$`)
-  tschTaskNameRegex = regexp.MustCompile(`^[^ :/\\][^:/\\]*$`)
+  tschDemand tschexec.TschDemand
+  tschCreate tschexec.TschCreate
 
   tschCmd = &cobra.Command{
     Use:   "tsch",
-    Short: "Establish execution via TSCH",
+    Short: "Establish execution via Windows Task Scheduler (MS-TSCH)",
     Args:  cobra.NoArgs,
   }
-  tschRegisterCmd = &cobra.Command{
-    Use:   "register [target]",
-    Short: "Register a remote scheduled task with an automatic start time",
+
+  tschDemandCmd = &cobra.Command{
+    Use:   "demand [target]",
+    Short: "Register a remote scheduled task and demand immediate start",
     Long: `Description:
-  The register method calls SchRpcRegisterTask to register a scheduled task
+  Similar to the create method, the demand method will call SchRpcRegisterTask,
+  But rather than setting a defined time when the task will start, it will
+  additionally call SchRpcRun to forcefully start the task.
+
+References:
+  SchRpcRegisterTask - https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/849c131a-64e4-46ef-b015-9d4c599c5167
+  SchRpcRun - https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/77f2250d-500a-40ee-be18-c82f7079c4f0
+`,
+    Args: args(
+      argsRpcClient("cifs"),
+      argsSmbClient(),
+      argsTschDemand,
+    ),
+
+    Run: func(cmd *cobra.Command, args []string) {
+      var err error
+
+      tschDemand.Client = &rpcClient
+      tschDemand.IO = exec
+
+      if tschDemand.TaskName == "" && tschDemand.TaskPath == "" {
+        tschDemand.TaskPath = `\` + util.RandomString()
+      }
+
+      ctx := log.WithContext(gssapi.NewSecurityContext(context.TODO()))
+
+      var writer io.WriteCloser
+
+      if outputPath == "-" {
+        writer = os.Stdout
+
+      } else if outputPath != "" {
+
+        if writer, err = os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE, 0644); err != nil {
+          log.Fatal().Err(err).Msg("Failed to open output file")
+        }
+        defer writer.Close()
+      }
+
+      if err = goexec.ExecuteCleanMethod(ctx, &tschDemand, &exec); err != nil {
+        log.Fatal().Err(err).Msg("Operation failed")
+      }
+
+      if outputPath != "" {
+        if reader, err := tschDemand.GetOutput(ctx); err == nil {
+          _, err = io.Copy(writer, reader)
+
+        } else {
+          log.Error().Err(err).Msg("Failed to get process execution output")
+          returnCode = 2
+        }
+      }
+    },
+  }
+  tschCreateCmd = &cobra.Command{
+    Use:   "create [target]",
+    Short: "Create a remote scheduled task with an automatic start time",
+    Long: `Description:
+  The create method calls SchRpcRegisterTask to register a scheduled task
   with an automatic start time.This method avoids directly calling SchRpcRun,
   and can even avoid calling SchRpcDelete by populating the DeleteExpiredTaskAfter
   Setting.
@@ -107,117 +152,49 @@ References:
   SchRpcDelete - https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/360bb9b1-dd2a-4b36-83ee-21f12cb97cff
   DeleteExpiredTaskAfter - https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/6bfde6fe-440e-4ddd-b4d6-c8fc0bc06fae
 `,
-    Args: tschArgs("cifs"),
+    Args: args(
+      argsRpcClient("cifs"),
+      argsSmbClient(),
+      argsTschCreate,
+    ),
+
     Run: func(cmd *cobra.Command, args []string) {
+      var err error
 
-      log = log.With().
-        Str("module", "tsch").
-        Str("method", "register").
-        Logger()
-      if tschNoDelete {
-        log.Warn().Msg("Task will not be deleted after execution")
+      tschCreate.Tsch.Client = &rpcClient
+      tschCreate.IO = exec
+
+      if tschCreate.TaskName == "" && tschDemand.TaskPath == "" {
+        tschCreate.TaskPath = `\` + util.RandomString()
       }
 
-      module := tschexec.Module{}
-      connCfg := &exec.ConnectionConfig{
-        ConnectionMethod:       exec.ConnectionMethodDCE,
-        ConnectionMethodConfig: dceConfig,
-      }
-      execCfg := &exec.ExecutionConfig{
-        ExecutableName:  executable,
-        ExecutableArgs:  executableArgs,
-        ExecutionMethod: tschexec.MethodRegister,
+      ctx := log.WithContext(gssapi.NewSecurityContext(context.TODO()))
 
-        ExecutionMethodConfig: tschexec.MethodRegisterConfig{
-          NoDelete:    tschNoDelete,
-          CallDelete:  tschCallDelete,
-          StartDelay:  tschDelay,
-          StopDelay:   tschStopDelay,
-          DeleteDelay: tschDeleteDelay,
-          TaskPath:    tschTaskPath,
-        },
-      }
-      if err := module.Connect(log.WithContext(ctx), creds, target, connCfg); err != nil {
-        log.Fatal().Err(err).Msg("Connection failed")
-      } else if err = module.Exec(log.WithContext(ctx), execCfg); err != nil {
-        log.Fatal().Err(err).Msg("Execution failed")
-      }
-    },
-  }
-  tschDemandCmd = &cobra.Command{
-    Use:   "demand [target]",
-    Short: "Register a remote scheduled task and demand immediate start",
-    Long: `Description:
-  Similar to the register method, the demand method will call SchRpcRegisterTask,
-  But rather than setting a defined time when the task will start, it will
-  additionally call SchRpcRun to forcefully start the task.
+      var writer io.WriteCloser
 
-References:
-  SchRpcRegisterTask - https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/849c131a-64e4-46ef-b015-9d4c599c5167
-  SchRpcRun - https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/77f2250d-500a-40ee-be18-c82f7079c4f0
-`,
-    Args: tschArgs("cifs"),
-    Run: func(cmd *cobra.Command, args []string) {
+      if outputPath == "-" {
+        writer = os.Stdout
 
-      log = log.With().
-        Str("module", "tsch").
-        Str("method", "register").
-        Logger()
-      if tschNoDelete {
-        log.Warn().Msg("Task will not be deleted after execution")
-      }
-      module := tschexec.Module{}
-      connCfg := &exec.ConnectionConfig{
-        ConnectionMethod:       exec.ConnectionMethodDCE,
-        ConnectionMethodConfig: dceConfig,
-      }
-      execCfg := &exec.ExecutionConfig{
-        ExecutableName:  executable,
-        ExecutableArgs:  executableArgs,
-        ExecutionMethod: tschexec.MethodDemand,
+      } else if outputPath != "" {
 
-        ExecutionMethodConfig: tschexec.MethodDemandConfig{
-          NoDelete:  tschNoDelete,
-          TaskPath:  tschTaskPath,
-          SessionId: tschSessionId,
-        },
+        if writer, err = os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE, 0644); err != nil {
+          log.Fatal().Err(err).Msg("Failed to open output file")
+        }
+        defer writer.Close()
       }
-      if err := module.Connect(log.WithContext(ctx), creds, target, connCfg); err != nil {
-        log.Fatal().Err(err).Msg("Connection failed")
-      } else if err = module.Exec(log.WithContext(ctx), execCfg); err != nil {
-        log.Fatal().Err(err).Msg("Execution failed")
-      }
-    },
-  }
-  tschDeleteCmd = &cobra.Command{
-    Use:   "delete [target]",
-    Short: "Manually delete a scheduled task",
-    Long: `Description:
-  The delete method manually deletes a scheduled task by calling SchRpcDelete
 
-References:
-  SchRpcDelete - https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/360bb9b1-dd2a-4b36-83ee-21f12cb97cff
-`,
-    Args: tschArgs("cifs"),
-    Run: func(cmd *cobra.Command, args []string) {
-      log = log.With().
-        Str("module", "tsch").
-        Str("method", "delete").
-        Logger()
+      if err = goexec.ExecuteCleanMethod(ctx, &tschDemand, &exec); err != nil {
+        log.Fatal().Err(err).Msg("Operation failed")
+      }
 
-      module := tschexec.Module{}
-      connCfg := &exec.ConnectionConfig{
-        ConnectionMethod:       exec.ConnectionMethodDCE,
-        ConnectionMethodConfig: dceConfig,
-      }
-      cleanCfg := &exec.CleanupConfig{
-        CleanupMethod:       tschexec.MethodDelete,
-        CleanupMethodConfig: tschexec.MethodDeleteConfig{TaskPath: tschTaskPath},
-      }
-      if err := module.Connect(log.WithContext(ctx), creds, target, connCfg); err != nil {
-        log.Fatal().Err(err).Msg("Connection failed")
-      } else if err := module.Cleanup(log.WithContext(ctx), cleanCfg); err != nil {
-        log.Fatal().Err(err).Msg("Cleanup failed")
+      if outputPath != "" {
+        if reader, err := tschDemand.GetOutput(ctx); err == nil {
+          _, err = io.Copy(writer, reader)
+
+        } else {
+          log.Error().Err(err).Msg("Failed to get process execution output")
+          returnCode = 2
+        }
       }
     },
   }

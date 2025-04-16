@@ -1,6 +1,7 @@
 package util
 
 import (
+  "github.com/google/uuid"
   "math/rand" // not crypto secure
   "regexp"
   "strings"
@@ -21,6 +22,10 @@ func RandomHostname() (hostname string) {
       return
     }
   }
+}
+
+func RandomWindowsTempFile() string {
+  return `\Windows\Temp\` + strings.ToUpper(uuid.New().String())
 }
 
 func RandomString() string {

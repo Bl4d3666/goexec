@@ -3,7 +3,7 @@ module github.com/FalconOpsLLC/goexec
 go 1.24.1
 
 require (
-	github.com/RedTeamPentesting/adauth v0.1.1-0.20250304075117-acd47d454877
+	github.com/RedTeamPentesting/adauth v0.2.0
 	github.com/google/uuid v1.6.0
 	github.com/oiweiwei/go-msrpc v1.2.5
 	github.com/rs/zerolog v1.34.0

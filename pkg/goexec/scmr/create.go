@@ -1,0 +1,125 @@
+package scmrexec
+
+import (
+  "context"
+  "fmt"
+  "github.com/FalconOpsLLC/goexec/internal/util"
+  "github.com/FalconOpsLLC/goexec/internal/windows"
+  "github.com/FalconOpsLLC/goexec/pkg/goexec"
+  "github.com/oiweiwei/go-msrpc/msrpc/scmr/svcctl/v2"
+  "github.com/rs/zerolog"
+)
+
+const (
+  MethodCreate = "Create"
+)
+
+type ScmrCreate struct {
+  Scmr
+  goexec.Cleaner
+  goexec.Executor
+
+  NoDelete    bool
+  NoStart     bool
+  ServiceName string
+  DisplayName string
+}
+
+func (m *ScmrCreate) ensure() {
+  if m.ServiceName == "" {
+    m.ServiceName = util.RandomString()
+  }
+  if m.DisplayName == "" {
+    m.DisplayName = m.ServiceName
+  }
+}
+
+func (m *ScmrCreate) Execute(ctx context.Context, in *goexec.ExecutionInput) (err error) {
+  m.ensure()
+
+  log := zerolog.Ctx(ctx).With().
+    Str("module", ModuleName).
+    Str("method", MethodCreate).
+    Str("service", m.ServiceName).
+    Logger()
+
+  svc := &service{name: m.ServiceName}
+
+  resp, err := m.ctl.CreateServiceW(ctx, &svcctl.CreateServiceWRequest{
+    ServiceManager: m.scm,
+    ServiceName:    m.ServiceName,
+    DisplayName:    m.DisplayName,
+    BinaryPathName: in.String(),
+    ServiceType:    windows.SERVICE_WIN32_OWN_PROCESS,
+    StartType:      windows.SERVICE_DEMAND_START,
+    DesiredAccess:  ServiceAllAccess, // TODO: Replace
+  })
+
+  if err != nil {
+    log.Error().Err(err).Msg("Create service request failed")
+    return fmt.Errorf("create service request: %w", err)
+  }
+
+  if resp.Return != 0 {
+    log.Error().Err(err).Msg("Failed to create service")
+    return fmt.Errorf("create service returned non-zero exit code: %02x", resp.Return)
+  }
+
+  if !m.NoDelete {
+    m.AddCleaner(func(ctxInner context.Context) error {
+
+      r, errInner := m.ctl.DeleteService(ctxInner, &svcctl.DeleteServiceRequest{
+        Service: svc.handle,
+      })
+      if errInner != nil {
+        return fmt.Errorf("delete service: %w", errInner)
+      }
+      if r.Return != 0 {
+        return fmt.Errorf("delete service returned non-zero exit code: %02x", r.Return)
+      }
+      log.Info().Msg("Deleted service")
+
+      return nil
+    })
+  }
+
+  m.AddCleaner(func(ctxInner context.Context) error {
+
+    r, errInner := m.ctl.CloseService(ctxInner, &svcctl.CloseServiceRequest{
+      ServiceObject: svc.handle,
+    })
+    if errInner != nil {
+      return fmt.Errorf("close service: %w", errInner)
+    }
+    if r.Return != 0 {
+      return fmt.Errorf("close service returned non-zero exit code: %02x", r.Return)
+    }
+    log.Info().Msg("Closed service handle")
+
+    return nil
+  })
+
+  log.Info().Msg("Created service")
+  svc.handle = resp.Service
+
+  if !m.NoStart {
+
+    err = m.startService(ctx, svc)
+    if err != nil {
+      log.Error().Err(err).Msg("Failed to start service")
+    }
+  }
+  if svc.handle == nil {
+
+    if err = m.Reconnect(ctx); err != nil {
+      return err
+    }
+
+    svc, err = m.openService(ctx, svc.name)
+    if err != nil {
+      return fmt.Errorf("reopen service: %w", err)
+    }
+  }
+
+  return
+}

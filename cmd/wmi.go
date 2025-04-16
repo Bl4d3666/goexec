@@ -1,52 +1,65 @@
 package cmd
 
 import (
+  "context"
   "encoding/json"
   "fmt"
-  "github.com/FalconOpsLLC/goexec/internal/exec"
-  wmiexec "github.com/FalconOpsLLC/goexec/internal/exec/wmi"
+  "github.com/FalconOpsLLC/goexec/pkg/goexec"
+  wmiexec "github.com/FalconOpsLLC/goexec/pkg/goexec/wmi"
+  "github.com/oiweiwei/go-msrpc/ssp/gssapi"
   "github.com/spf13/cobra"
+  "io"
+  "os"
 )
 
 func wmiCmdInit() {
   registerRpcFlags(wmiCmd)
+
   wmiCallCmdInit()
   wmiCmd.AddCommand(wmiCallCmd)
-  wmiProcessCmdInit()
-  wmiCmd.AddCommand(wmiProcessCmd)
+
+  wmiProcCmdInit()
+  wmiCmd.AddCommand(wmiProcCmd)
+}
+
+func wmiCallArgs(_ *cobra.Command, _ []string) error {
+  return json.Unmarshal([]byte(wmiArguments), &wmiCall.Args)
 }
 
 func wmiCallCmdInit() {
-  wmiCallCmd.Flags().StringVarP(&dceConfig.Resource, "namespace", "n", "//./root/cimv2", "WMI namespace")
-  wmiCallCmd.Flags().StringVarP(&wmi.Class, "class", "C", "", `WMI class to instantiate (i.e. "Win32_Process")`)
-  wmiCallCmd.Flags().StringVarP(&wmi.Method, "method", "m", "", `WMI Method to call (i.e. "Create")`)
-  wmiCallCmd.Flags().StringVarP(&wmi.Args, "args", "A", "{}", `WMI Method argument(s) in JSON dictionary format (i.e. {"CommandLine":"calc.exe"})`)
+  wmiCallCmd.Flags().StringVarP(&wmiCall.Resource, "namespace", "n", "//./root/cimv2", "WMI namespace")
+  wmiCallCmd.Flags().StringVarP(&wmiCall.Class, "class", "C", "", `WMI class to instantiate (i.e. "Win32_Process")`)
+  wmiCallCmd.Flags().StringVarP(&wmiCall.Method, "method", "m", "", `WMI Method to call (i.e. "Create")`)
+  wmiCallCmd.Flags().StringVarP(&wmiArguments, "args", "A", "{}", `WMI Method argument(s) in JSON dictionary format (i.e. {"CommandLine":"calc.exe"})`)
+
+  if err := wmiCallCmd.MarkFlagRequired("class"); err != nil {
+    panic(err)
+  }
   if err := wmiCallCmd.MarkFlagRequired("method"); err != nil {
     panic(err)
   }
 }
 
-func wmiProcessCmdInit() {
-  wmiProcessCmd.Flags().StringVarP(&command, "command", "c", "", "Process command line")
-  wmiProcessCmd.Flags().StringVarP(&workingDirectory, "directory", "d", `C:\`, "Working directory")
-  if err := wmiProcessCmd.MarkFlagRequired("command"); err != nil {
-    panic(err)
-  }
+func wmiProcCmdInit() {
+  wmiProcCmd.Flags().StringVarP(&wmiProc.Resource, "namespace", "n", "//./root/cimv2", "WMI namespace")
+  wmiProcCmd.Flags().StringVarP(&wmiProc.WorkingDirectory, "directory", "d", `C:\`, "Working directory")
+
+  registerProcessExecutionArgs(wmiProcCmd)
+  registerExecutionOutputArgs(wmiProcCmd)
 }
 
 var (
-  wmi struct {
-    Class  string
-    Method string
-    Args   string
-  }
-  wmiMethodArgsMap map[string]any
+  wmiCall = wmiexec.WmiCall{}
+  wmiProc = wmiexec.WmiProc{}
+
+  wmiArguments string
 
   wmiCmd = &cobra.Command{
     Use:   "wmi",
-    Short: "Establish execution via WMI",
+    Short: "Establish execution via wmi",
     Args:  cobra.NoArgs,
   }
+
   wmiCallCmd = &cobra.Command{
     Use:   "call",
     Short: "Execute specified WMI method",
@@ -56,52 +69,48 @@ var (
 
 References:
   https://learn.microsoft.com/en-us/windows/win32/wmisdk/wmi-classes
-  `,
-    Args: needs(needsTarget("cifs"), needsRpcTarget("cifs"), func(cmd *cobra.Command, args []string) (err error) {
-      if err = json.Unmarshal([]byte(wmi.Args), &wmiMethodArgsMap); err != nil {
-        err = fmt.Errorf("parse JSON arguments: %w", err)
-      }
-      return
-    }),
-    Run: func(cmd *cobra.Command, args []string) {
-      executor := wmiexec.Module{}
-      cleanCfg := &exec.CleanupConfig{} // TODO
-      connCfg := &exec.ConnectionConfig{
-        ConnectionMethod:       exec.ConnectionMethodDCE,
-        ConnectionMethodConfig: dceConfig,
-      }
+`,
+    Args: args(argsRpcClient("host"), wmiCallArgs),
 
-      execCfg := &exec.ExecutionConfig{
-        ExecutableName:  executable,
-        ExecutableArgs:  executableArgs,
-        ExecutionMethod: wmiexec.MethodCall,
-        ExecutionMethodConfig: wmiexec.MethodCallConfig{
-          Class:     wmi.Class,
-          Method:    wmi.Method,
-          Arguments: wmiMethodArgsMap,
-        },
-      }
+    Run: func(cmd *cobra.Command, args []string) {
+      var err error
+
+      ctx := gssapi.NewSecurityContext(context.Background())
 
       ctx = log.With().
         Str("module", "wmi").
-        Str("method", "proc").
-        Logger().WithContext(ctx)
+        Str("method", "call").
+        Logger().
+        WithContext(ctx)
 
-      if err := executor.Connect(ctx, creds, target, connCfg); err != nil {
+      if err = rpcClient.Connect(ctx); err != nil {
         log.Fatal().Err(err).Msg("Connection failed")
       }
+
       defer func() {
-        if err := executor.Cleanup(ctx, cleanCfg); err != nil {
-          log.Error().Err(err).Msg("Cleanup failed")
+        closeErr := rpcClient.Close(ctx)
+        if closeErr != nil {
+          log.Error().Err(closeErr).Msg("Failed to close connection")
         }
       }()
-      if err := executor.Exec(ctx, execCfg); err != nil {
-        log.Error().Err(err).Msg("Execution failed")
+
+      if err = wmiCall.Init(ctx); err != nil {
+        log.Error().Err(err).Msg("Module initialization failed")
+        returnCode = 2
+        return
       }
+
+      out, err := wmiCall.Call(ctx)
+      if err != nil {
+        log.Error().Err(err).Msg("Call failed")
+        returnCode = 4
+        return
+      }
+      fmt.Println(string(out))
     },
   }
 
-  wmiProcessCmd = &cobra.Command{
+  wmiProcCmd = &cobra.Command{
     Use:   "proc",
     Short: "Start a Windows process",
     Long: `Description:
@@ -112,41 +121,41 @@ References:
 References:
   https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/create-method-in-class-win32-process
 `,
-    Args: needs(needsTarget("cifs"), needsRpcTarget("cifs")),
+    Args: args(argsOutput("smb"), argsRpcClient("host")),
+
     Run: func(cmd *cobra.Command, args []string) {
+      var err error
 
-      executor := wmiexec.Module{}
-      cleanCfg := &exec.CleanupConfig{} // TODO
-      connCfg := &exec.ConnectionConfig{
-        ConnectionMethod:       exec.ConnectionMethodDCE,
-        ConnectionMethodConfig: dceConfig,
-      }
-      execCfg := &exec.ExecutionConfig{
-        ExecutableName:  executable,
-        ExecutableArgs:  executableArgs,
-        ExecutionMethod: wmiexec.MethodProcess,
+      wmiProc.Client = &rpcClient
+      wmiProc.IO = exec
 
-        ExecutionMethodConfig: wmiexec.MethodProcessConfig{
-          Command:          command,
-          WorkingDirectory: workingDirectory,
-        },
-      }
+      ctx := log.WithContext(gssapi.NewSecurityContext(context.TODO()))
 
-      ctx = log.With().
-        Str("module", "wmi").
-        Str("method", "proc").
-        Logger().WithContext(ctx)
+      var writer io.WriteCloser
 
-      if err := executor.Connect(ctx, creds, target, connCfg); err != nil {
-        log.Fatal().Err(err).Msg("Connection failed")
-      }
-      defer func() {
-        if err := executor.Cleanup(ctx, cleanCfg); err != nil {
-          log.Error().Err(err).Msg("Cleanup failed")
+      if outputPath == "-" {
+        writer = os.Stdout
+
+      } else if outputPath != "" {
+
+        if writer, err = os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE, 0644); err != nil {
+          log.Fatal().Err(err).Msg("Failed to open output file")
         }
-      }()
-      if err := executor.Exec(ctx, execCfg); err != nil {
-        log.Error().Err(err).Msg("Execution failed")
+        defer writer.Close()
+      }
+
+      if err = goexec.ExecuteCleanMethod(ctx, &wmiProc, &exec); err != nil {
+        log.Fatal().Err(err).Msg("Operation failed")
+      }
+
+      if outputPath != "" {
+        if reader, err := wmiProc.GetOutput(ctx); err == nil {
+          _, err = io.Copy(writer, reader)
+
+        } else {
+          log.Error().Err(err).Msg("Failed to get process execution output")
+          returnCode = 2
+        }
       }
     },
   }

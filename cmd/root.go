@@ -1,122 +1,105 @@
 package cmd
 
 import (
-  "context"
   "fmt"
+  "github.com/FalconOpsLLC/goexec/internal/util"
+  "github.com/FalconOpsLLC/goexec/pkg/goexec"
+  "github.com/FalconOpsLLC/goexec/pkg/goexec/dce"
+  "github.com/FalconOpsLLC/goexec/pkg/goexec/smb"
   "github.com/RedTeamPentesting/adauth"
+  "github.com/oiweiwei/go-msrpc/ssp"
+  "github.com/oiweiwei/go-msrpc/ssp/gssapi"
   "github.com/rs/zerolog"
   "github.com/spf13/cobra"
-  "net/url"
   "os"
-  "regexp"
-  "strings"
 )
 
 var (
-  //logFile string
-  log      zerolog.Logger
-  ctx      context.Context
-  authOpts *adauth.Options
+  debug        bool
+  logJson      bool
+  returnCode   int
+  outputMethod string
+  outputPath   string
+  proxy        string
 
-  hostname string
-  proxyStr string
-  proxyUrl *url.URL
+  log zerolog.Logger
 
-  // Root flags
-  unsafe bool // not implemented
-  debug  bool
+  rpcClient dce.Client
+  smbClient smb.Client
 
-  // Generic flags
-  command          string
-  executable       string
-  executablePath   string
-  executableArgs   string
-  workingDirectory string
-  windowState      string
+  exec = goexec.ExecutionIO{
+    Input:  new(goexec.ExecutionInput),
+    Output: new(goexec.ExecutionOutput),
+  }
+
+  authOpts   *adauth.Options
+  credential *adauth.Credential
+  target     *adauth.Target
 
   rootCmd = &cobra.Command{
-    Use: "goexec",
-    PersistentPreRunE: func(cmd *cobra.Command, args []string) (err error) {
-      // For modules that require a full executable path
-      if executablePath != "" && !regexp.MustCompile(`^([a-zA-Z]:)?\\`).MatchString(executablePath) {
-        return fmt.Errorf("executable path (-e) must be an absolute Windows path, i.e. C:\\Windows\\System32\\cmd.exe")
+    Use:   "goexec",
+    Short: `Windows remote execution multitool`,
+    Long:  `TODO`,
+
+    PersistentPreRun: func(cmd *cobra.Command, args []string) {
+
+      if logJson {
+        log = zerolog.New(os.Stderr)
+      } else {
+        log = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr})
       }
-      if command != "" {
-        p := strings.SplitN(command, " ", 2)
-        executable = p[0]
-        if len(p) > 1 {
-          executableArgs = p[1]
-        }
-      }
-      log = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).Level(zerolog.InfoLevel).With().Timestamp().Logger()
+
+      log = log.Level(zerolog.InfoLevel).With().Timestamp().Logger()
       if debug {
         log = log.Level(zerolog.DebugLevel)
       }
-      return
+
+      if outputMethod == "smb" {
+        if exec.Output.RemotePath == "" {
+          exec.Output.RemotePath = util.RandomWindowsTempFile()
+        }
+        exec.Output.Provider = &smb.OutputFileFetcher{
+          Client: &smbClient,
+          Share:  `C$`,
+          File:   exec.Output.RemotePath,
+        }
+      }
     },
   }
 )
 
-func needs(reqs ...func(*cobra.Command, []string) error) (fn func(*cobra.Command, []string) error) {
-  return func(cmd *cobra.Command, args []string) (err error) {
-    for _, req := range reqs {
-      if err = req(cmd, args); err != nil {
-        return
-      }
-    }
-    return
-  }
-}
-
-func needsTarget(proto string) func(cmd *cobra.Command, args []string) error {
-
-  return func(cmd *cobra.Command, args []string) (err error) {
-    if proxyStr != "" {
-      if proxyUrl, err = url.Parse(proxyStr); err != nil {
-        return fmt.Errorf("failed to parse proxy URL %q: %w", proxyStr, err)
-      }
-    }
-    if len(args) != 1 {
-      return fmt.Errorf("command require exactly one positional argument: [target]")
-    }
-    if creds, target, err = authOpts.WithTarget(ctx, proto, args[0]); err != nil {
-      return fmt.Errorf("failed to parse target: %w", err)
-    }
-    if creds == nil {
-      return fmt.Errorf("no credentials supplied")
-    }
-    if target == nil {
-      return fmt.Errorf("no target supplied")
-    }
-    if hostname, err = target.Hostname(ctx); err != nil {
-      log.Debug().Err(err).Msg("Could not get target hostname")
-    }
-    return
-  }
-}
-
 func init() {
-  ctx = context.Background()
+  // Cobra init
+  {
+    cobra.EnableCommandSorting = false
 
-  cobra.EnableCommandSorting = false
+    rootCmd.InitDefaultVersionFlag()
+    rootCmd.InitDefaultHelpCmd()
+    rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
+    rootCmd.PersistentFlags().BoolVar(&logJson, "log-json", false, "Log in JSON format")
 
-  rootCmd.InitDefaultVersionFlag()
-  rootCmd.InitDefaultHelpCmd()
-  rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
-  rootCmd.PersistentFlags().StringVarP(&proxyStr, "proxy", "x", "", "Proxy URL")
-  rootCmd.PersistentFlags().BoolVar(&unsafe, "unsafe", false, "[NOT IMPLEMENTED] Don't ask for permission to run unsafe actions")
+    dcomCmdInit()
+    rootCmd.AddCommand(dcomCmd)
 
-  authOpts = &adauth.Options{Debug: log.Debug().Msgf}
-  authOpts.RegisterFlags(rootCmd.PersistentFlags())
+    wmiCmdInit()
+    rootCmd.AddCommand(wmiCmd)
 
-  scmrCmdInit()
-  rootCmd.AddCommand(scmrCmd)
-  tschCmdInit()
-  rootCmd.AddCommand(tschCmd)
-  wmiCmdInit()
-  rootCmd.AddCommand(wmiCmd)
-  dcomCmdInit()
-  rootCmd.AddCommand(dcomCmd)
+    scmrCmdInit()
+    rootCmd.AddCommand(scmrCmd)
+
+    tschCmdInit()
+    rootCmd.AddCommand(tschCmd)
+  }
+
+  // Auth init
+  {
+    gssapi.AddMechanism(ssp.SPNEGO)
+    gssapi.AddMechanism(ssp.NTLM)
+    gssapi.AddMechanism(ssp.KRB5)
+
+    authOpts = &adauth.Options{Debug: log.Debug().Msgf}
+    authOpts.RegisterFlags(rootCmd.PersistentFlags())
+  }
 }
 
 func Execute() {
@@ -124,4 +107,5 @@ func Execute() {
     fmt.Println(err)
     os.Exit(1)
   }
+  os.Exit(returnCode)
 }

@@ -5,6 +5,7 @@ WORKDIR /go/src/
 
 COPY cmd/ cmd/
 COPY internal/ internal/
+COPY pkg/ pkg/
 COPY main.go go.mod go.sum ./
 
 ENV CGO_ENABLED=0
