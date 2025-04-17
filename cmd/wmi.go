@@ -28,7 +28,7 @@ func wmiCallCmdInit() {
 	wmiCallCmd.Flags().StringVarP(&wmiCall.Resource, "namespace", "n", "//./root/cimv2", "WMI namespace")
 	wmiCallCmd.Flags().StringVarP(&wmiCall.Class, "class", "C", "", `WMI class to instantiate (i.e. "Win32_Process")`)
 	wmiCallCmd.Flags().StringVarP(&wmiCall.Method, "method", "m", "", `WMI Method to call (i.e. "Create")`)
-	wmiCallCmd.Flags().StringVarP(&wmiArguments, "args", "A", "{}", `WMI Method argument(s) in JSON dictionary format (i.e. {"CommandLine":"calc.exe"})`)
+	wmiCallCmd.Flags().StringVarP(&wmiArguments, "args", "A", "{}", `WMI Method argument(s) in JSON dictionary format (i.e. {"Command":"calc.exe"})`)
 
 	if err := wmiCallCmd.MarkFlagRequired("class"); err != nil {
 		panic(err)
@@ -131,7 +131,7 @@ References:
 			ctx := log.With().
 				Str("module", "wmi").
 				Str("method", "proc").
-				Logger().WithContext(gssapi.NewSecurityContext(context.TODO()))
+				Logger().WithContext(gssapi.NewSecurityContext(context.Background()))
 
 			if err := goexec.ExecuteCleanMethod(ctx, &wmiProc, &exec); err != nil {
 				log.Fatal().Err(err).Msg("Operation failed")

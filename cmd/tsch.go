@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"github.com/FalconOpsLLC/goexec/internal/util"
 	"github.com/FalconOpsLLC/goexec/pkg/goexec"
 	tschexec "github.com/FalconOpsLLC/goexec/pkg/goexec/tsch"
@@ -20,42 +21,19 @@ func tschCmdInit() {
 	tschCmd.AddCommand(tschCreateCmd)
 }
 
-func argsTschTaskIdentifiers(name, path string) error {
-	switch {
-	case path != "":
-		return tschexec.ValidateTaskPath(path)
-	case name != "":
-		return tschexec.ValidateTaskName(name)
-	default:
-	}
-	return nil
-}
-
-func argsTschDemand(_ *cobra.Command, _ []string) error {
-	return argsTschTaskIdentifiers(tschDemand.TaskName, tschDemand.TaskPath)
-}
-
-func argsTschCreate(_ *cobra.Command, _ []string) error {
-	return argsTschTaskIdentifiers(tschCreate.TaskName, tschCreate.TaskPath)
-}
-
 func tschDemandCmdInit() {
-	tschDemandCmd.Flags().StringVarP(&tschDemand.TaskName, "name", "t", "", "Name of task to register")
-	tschDemandCmd.Flags().StringVarP(&tschDemand.TaskPath, "path", "P", "", "Path of task to register")
+	tschDemandCmd.Flags().StringVarP(&tschTask, "task", "t", "", "Name or path of the new task")
 	tschDemandCmd.Flags().Uint32Var(&tschDemand.SessionId, "session", 0, "Hijack existing session given the session ID")
 	tschDemandCmd.Flags().BoolVar(&tschDemand.NoDelete, "no-delete", false, "Don't delete task after execution")
 	tschDemandCmd.Flags().StringVar(&tschDemand.UserSid, "sid", "S-1-5-18", "User SID to impersonate")
 
 	registerProcessExecutionArgs(tschDemandCmd)
 	registerExecutionOutputArgs(tschDemandCmd)
-
-	tschDemandCmd.MarkFlagsMutuallyExclusive("name", "path")
 }
 
 func tschCreateCmdInit() {
-	tschCreateCmd.Flags().StringVarP(&tschCreate.TaskName, "name", "t", "", "Name of task to register")
-	tschCreateCmd.Flags().StringVarP(&tschCreate.TaskPath, "path", "P", "", "Path of task to register")
-	tschCreateCmd.Flags().DurationVar(&tschCreate.StopDelay, "delay-stop", 5*time.Second, "Delay between task execution and termination. This will not stop the process spawned by the task")
+	tschCreateCmd.Flags().StringVarP(&tschTask, "task", "t", "", "Name or path of the new task")
+	tschCreateCmd.Flags().DurationVar(&tschCreate.StopDelay, "delay-stop", 5*time.Second, "Delay between task execution and termination. This won't stop the spawned process")
 	tschCreateCmd.Flags().DurationVar(&tschCreate.StartDelay, "start-delay", 5*time.Second, "Delay between task registration and execution")
 	tschCreateCmd.Flags().DurationVar(&tschCreate.DeleteDelay, "delete-delay", 0*time.Second, "Delay between task termination and deletion")
 	tschCreateCmd.Flags().BoolVar(&tschCreate.NoDelete, "no-delete", false, "Don't delete task after execution")
@@ -64,13 +42,26 @@ func tschCreateCmdInit() {
 
 	registerProcessExecutionArgs(tschCreateCmd)
 	registerExecutionOutputArgs(tschCreateCmd)
+}
 
-	tschCreateCmd.MarkFlagsMutuallyExclusive("name", "path")
+func argsTask(*cobra.Command, []string) error {
+	switch {
+	case tschTask == "":
+		tschTask = `\` + util.RandomString()
+	case tschexec.ValidateTaskPath(tschTask) == nil:
+	case tschexec.ValidateTaskName(tschTask) == nil:
+		tschTask = `\` + tschTask
+	default:
+		return fmt.Errorf("invalid task name or path: %q", tschTask)
+	}
+	return nil
 }
 
 var (
 	tschDemand tschexec.TschDemand
 	tschCreate tschexec.TschCreate
+
+	tschTask string
 
 	tschCmd = &cobra.Command{
 		Use:   "tsch",
@@ -93,18 +84,18 @@ References:
 		Args: args(
 			argsRpcClient("cifs"),
 			argsOutput("smb"),
-			argsTschDemand,
+			argsTask,
 		),
 
-		Run: func(cmd *cobra.Command, args []string) {
-			tschDemand.Client = &rpcClient
+		Run: func(*cobra.Command, []string) {
 			tschDemand.IO = exec
+			tschDemand.Client = &rpcClient
+			tschDemand.TaskPath = tschTask
 
-			if tschDemand.TaskName == "" && tschDemand.TaskPath == "" {
-				tschDemand.TaskPath = `\` + util.RandomString()
-			}
-
-			ctx := log.WithContext(gssapi.NewSecurityContext(context.TODO()))
+			ctx := log.With().
+				Str("module", "tsch").
+				Str("method", "demand").
+				Logger().WithContext(gssapi.NewSecurityContext(context.TODO()))
 
 			if err := goexec.ExecuteCleanMethod(ctx, &tschDemand, &exec); err != nil {
 				log.Fatal().Err(err).Msg("Operation failed")
@@ -129,18 +120,17 @@ References:
 		Args: args(
 			argsRpcClient("cifs"),
 			argsOutput("smb"),
-			argsTschCreate,
+			argsTask,
 		),
 
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: func(*cobra.Command, []string) {
 			tschCreate.Tsch.Client = &rpcClient
 			tschCreate.IO = exec
 
-			if tschCreate.TaskName == "" && tschDemand.TaskPath == "" {
-				tschCreate.TaskPath = `\` + util.RandomString()
-			}
-
-			ctx := log.WithContext(gssapi.NewSecurityContext(context.TODO()))
+			ctx := log.With().
+				Str("module", "tsch").
+				Str("method", "create").
+				Logger().WithContext(gssapi.NewSecurityContext(context.TODO()))
 
 			if err := goexec.ExecuteCleanMethod(ctx, &tschCreate, &exec); err != nil {
 				log.Fatal().Err(err).Msg("Operation failed")

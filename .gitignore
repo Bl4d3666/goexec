@@ -7,3 +7,5 @@
 /go.work.sum
 *.pcap
 *.pcapng
+*.log
+*.json

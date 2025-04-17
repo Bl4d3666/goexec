@@ -54,15 +54,17 @@ var (
 				log = log.Level(zerolog.DebugLevel)
 			}
 
-			if outputMethod == "smb" {
-				if exec.Output.RemotePath == "" {
-					exec.Output.RemotePath = util.RandomWindowsTempFile()
-				}
-				exec.Output.Provider = &smb.OutputFileFetcher{
-					Client:           &smbClient,
-					Share:            `C$`,
-					File:             exec.Output.RemotePath,
-					DeleteOutputFile: exec.Output.NoDelete, // TEMP
+			if outputPath != "" {
+				if outputMethod == "smb" {
+					if exec.Output.RemotePath == "" {
+						exec.Output.RemotePath = util.RandomWindowsTempFile()
+					}
+					exec.Output.Provider = &smb.OutputFileFetcher{
+						Client:           &smbClient,
+						Share:            `C$`,
+						File:             exec.Output.RemotePath,
+						DeleteOutputFile: !exec.Output.NoDelete,
+					}
 				}
 			}
 		},
@@ -81,13 +83,10 @@ func init() {
 
 		dcomCmdInit()
 		rootCmd.AddCommand(dcomCmd)
-
 		wmiCmdInit()
 		rootCmd.AddCommand(wmiCmd)
-
 		scmrCmdInit()
 		rootCmd.AddCommand(scmrCmd)
-
 		tschCmdInit()
 		rootCmd.AddCommand(tschCmd)
 	}

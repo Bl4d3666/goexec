@@ -32,7 +32,7 @@ func (m *TschCreate) Execute(ctx context.Context, execIO *goexec.ExecutionIO) (e
 	log := zerolog.Ctx(ctx).With().
 		Str("module", ModuleName).
 		Str("method", MethodCreate).
-		Str("task", m.TaskName).
+		Str("task", m.TaskPath).
 		Logger()
 
 	startTime := time.Now().UTC().Add(m.StartDelay)

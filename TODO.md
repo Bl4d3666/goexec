@@ -6,10 +6,10 @@
 
 - [X] Clean up TSCH module
 - [X] Session hijacking
-- [ ] Add more trigger types
-- [ ] Add command to tsch - update task if it already exists. See https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/849c131a-64e4-46ef-b015-9d4c599c5167 (`flags` argument)
 - [X] Generate random name/path
 - [X] Output
+- [ ] Add more trigger types
+- [ ] Add command to tsch - update task if it already exists. See https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/849c131a-64e4-46ef-b015-9d4c599c5167 (`flags` argument)
 
 ### SCMR
 
@@ -24,12 +24,13 @@
 - [X] Add DCOM module
 - [X] MMC20.Application method
 - [ ] Output
+- [ ] ShellWindows & ShellBrowserWindow
 
 ### WMI
 
 - [X] Add WMI module
 - [X] Clean up WMI module
-- [ ] Output
+- [X] Output
 - [ ] WMI `reg` subcommand - read & edit the registry
 - [ ] File transfer functionality
 
@@ -43,11 +44,9 @@
 
 ## Resolve Eventually
 
-- [ ] Packet stub encryption for ncacn_ip_tcp doesn't appear to be working...
 - [ ] `--shell` option
 - [ ] Add Go tests
 - [ ] ability to specify multiple targets
-- [ ] Standardize modules to interface for future use
 
 ### WinRM
 
