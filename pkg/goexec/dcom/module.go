@@ -102,7 +102,7 @@ func (m *Dcom) Init(ctx context.Context) (err error) {
 		return fmt.Errorf("remote create instance response: PropertiesOutInfo is nil")
 	}
 
-	opts = append(opts, si.RemoteReply.OXIDBindings.EndpointsByProtocol("ncacn_ip_tcp")...) // TODO
+	opts = append(opts, si.RemoteReply.OXIDBindings.EndpointsByProtocol("ncacn_ip_tcp")...)
 
 	err = m.Client.Reconnect(ctx, opts...)
 	if err != nil {
