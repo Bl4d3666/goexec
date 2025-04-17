@@ -23,7 +23,7 @@
 
 - [X] Add DCOM module
 - [X] MMC20.Application method
-- [ ] Output
+- [X] Output
 - [ ] ShellWindows & ShellBrowserWindow
 
 ### WMI

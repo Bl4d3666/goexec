@@ -41,6 +41,13 @@ func (execIO *ExecutionIO) GetOutput(ctx context.Context) (err error) {
 	return nil
 }
 
+func (execIO *ExecutionIO) Clean(ctx context.Context) (err error) {
+	if execIO.Output.Provider != nil {
+		return execIO.Output.Provider.Clean(ctx)
+	}
+	return nil
+}
+
 func (execIO *ExecutionIO) CommandLine() (cmd []string) {
 	if execIO.Output.Provider != nil && execIO.Output.RemotePath != "" {
 		return []string{
@@ -49,13 +56,6 @@ func (execIO *ExecutionIO) CommandLine() (cmd []string) {
 		}
 	}
 	return execIO.Input.CommandLine()
-}
-
-func (execIO *ExecutionIO) Clean(ctx context.Context) (err error) {
-	if execIO.Output.Provider != nil {
-		return execIO.Output.Provider.Clean(ctx)
-	}
-	return nil
 }
 
 func (execIO *ExecutionIO) String() (cmd string) {
@@ -76,6 +76,12 @@ func (i *ExecutionInput) CommandLine() (cmd []string) {
 	case i.Executable != "":
 		cmd[0] = i.Executable
 	}
+
+	// Ensure that executable paths are quoted
+	if strings.Contains(cmd[0], " ") {
+		cmd[0] = fmt.Sprintf(`%q`, cmd[0])
+	}
+
 	return cmd
 }
 

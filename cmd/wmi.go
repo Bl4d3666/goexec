@@ -54,7 +54,7 @@ var (
 
 	wmiCmd = &cobra.Command{
 		Use:   "wmi",
-		Short: "Establish execution via wmi",
+		Short: "Establish execution via WMI",
 		Args:  cobra.NoArgs,
 	}
 

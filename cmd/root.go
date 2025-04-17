@@ -54,6 +54,11 @@ var (
 				log = log.Level(zerolog.DebugLevel)
 			}
 
+			if proxy != "" {
+				rpcClient.Proxy = proxy
+				smbClient.Proxy = proxy
+			}
+
 			if outputPath != "" {
 				if outputMethod == "smb" {
 					if exec.Output.RemotePath == "" {
@@ -80,6 +85,7 @@ func init() {
 		rootCmd.InitDefaultHelpCmd()
 		rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
 		rootCmd.PersistentFlags().BoolVar(&logJson, "log-json", false, "Log in JSON format")
+		rootCmd.PersistentFlags().StringVarP(&proxy, "proxy", "x", "", "Proxy URL")
 
 		dcomCmdInit()
 		rootCmd.AddCommand(dcomCmd)
