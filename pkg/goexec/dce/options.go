@@ -1,108 +1,109 @@
 package dce
 
 import (
-  "context"
-  "fmt"
-  "github.com/FalconOpsLLC/goexec/pkg/goexec"
-  "github.com/RedTeamPentesting/adauth/dcerpcauth"
-  "github.com/oiweiwei/go-msrpc/dcerpc"
-  "net"
+	"context"
+	"fmt"
+	"github.com/FalconOpsLLC/goexec/pkg/goexec"
+	"github.com/RedTeamPentesting/adauth/dcerpcauth"
+	"github.com/oiweiwei/go-msrpc/dcerpc"
+	"net"
 )
 
 type Options struct {
-  goexec.ClientOptions
-  goexec.AuthOptions
+	goexec.ClientOptions
+	goexec.AuthOptions
 
-  // NoSign disables packet signing by omitting dcerpc.WithSign()
-  NoSign bool `json:"no_sign" yaml:"no_sign"`
+	// NoSign disables packet signing by omitting dcerpc.WithSign()
+	NoSign bool `json:"no_sign" yaml:"no_sign"`
 
-  // NoSeal disables packet stub encryption by omitting dcerpc.WithSeal()
-  NoSeal bool `json:"no_seal" yaml:"no_seal"`
+	// NoSeal disables packet stub encryption by omitting dcerpc.WithSeal()
+	NoSeal bool `json:"no_seal" yaml:"no_seal"`
 
-  // NoLog disables logging by omitting dcerpc.WithLogger(...)
-  NoLog bool `json:"no_log" yaml:"no_log"`
+	// NoLog disables logging by omitting dcerpc.WithLogger(...)
+	NoLog bool `json:"no_log" yaml:"no_log"`
 
-  // NoEpm disables DCE endpoint mapper communications
-  NoEpm bool `json:"no_epm" yaml:"no_epm"`
+	// NoEpm disables DCE endpoint mapper communications
+	NoEpm bool `json:"no_epm" yaml:"no_epm"`
 
-  // Endpoint stores the explicit DCE string binding to use
-  Endpoint string `json:"endpoint,omitempty" yaml:"endpoint,omitempty"`
+	// Endpoint stores the explicit DCE string binding to use
+	Endpoint string `json:"endpoint,omitempty" yaml:"endpoint,omitempty"`
 
-  // Filter stores the filter for returned endpoints from an endpoint mapper
-  Filter string `json:"filter,omitempty" yaml:"filter,omitempty"`
+	// Filter stores the filter for returned endpoints from an endpoint mapper
+	Filter string `json:"filter,omitempty" yaml:"filter,omitempty"`
 
-  netDialer      goexec.Dialer
-  dialer         dcerpc.Dialer
-  authOptions    []dcerpc.Option
-  DcerpcOptions  []dcerpc.Option
-  epmOptions     []dcerpc.Option
-  stringBindings []*dcerpc.StringBinding
+	netDialer      goexec.Dialer
+	dialer         dcerpc.Dialer
+	authOptions    []dcerpc.Option
+	DcerpcOptions  []dcerpc.Option
+	epmOptions     []dcerpc.Option
+	stringBindings []*dcerpc.StringBinding
 }
 
 func (c *Client) Parse(ctx context.Context) (err error) {
 
-  // Reset internals
-  {
-    c.netDialer = nil
-    c.dialer = nil
-    c.stringBindings = []*dcerpc.StringBinding{}
-    c.authOptions = []dcerpc.Option{}
-    c.DcerpcOptions = []dcerpc.Option{}
-    c.epmOptions = []dcerpc.Option{
-      dcerpc.WithSign(), // Require signing for EPM
-    }
-  }
+	// Reset internals
+	{
+		c.netDialer = nil
+		c.dialer = nil
+		c.stringBindings = []*dcerpc.StringBinding{}
+		c.authOptions = []dcerpc.Option{}
+		c.DcerpcOptions = []dcerpc.Option{}
+		c.epmOptions = []dcerpc.Option{
+			dcerpc.WithSign(), // Require signing for EPM
+		}
+	}
 
-  if !c.NoSeal {
-    // Enable encryption
-    c.DcerpcOptions = append(c.DcerpcOptions, dcerpc.WithSeal(), dcerpc.WithSecurityLevel(dcerpc.AuthLevelPktPrivacy))
-    c.epmOptions = append(c.epmOptions, dcerpc.WithSeal(), dcerpc.WithSecurityLevel(dcerpc.AuthLevelPktPrivacy))
-  }
-  if !c.NoSign {
-    // Enable signing
-    c.DcerpcOptions = append(c.DcerpcOptions, dcerpc.WithSign())
-    //c.epmOptions = append(c.epmOptions, dcerpc.WithSign())
-  }
+	if !c.NoSeal {
+		// Enable encryption
+		c.DcerpcOptions = append(c.DcerpcOptions, dcerpc.WithSeal(), dcerpc.WithSecurityLevel(dcerpc.AuthLevelPktPrivacy))
+		c.epmOptions = append(c.epmOptions, dcerpc.WithSeal(), dcerpc.WithSecurityLevel(dcerpc.AuthLevelPktPrivacy))
+	}
+	if !c.NoSign {
+		// Enable signing
+		c.DcerpcOptions = append(c.DcerpcOptions, dcerpc.WithSign())
+		//c.epmOptions = append(c.epmOptions, dcerpc.WithSign())
+	}
 
-  // Parse DCERPC endpoint
-  if c.Endpoint != "" {
-    sb, err := dcerpc.ParseStringBinding(c.Endpoint)
-    if err != nil {
-      return err
-    }
-    c.stringBindings = append(c.stringBindings, sb)
-  }
+	// Parse DCERPC endpoint
+	if c.Endpoint != "" {
+		sb, err := dcerpc.ParseStringBinding(c.Endpoint)
+		if err != nil {
+			return err
+		}
+		c.stringBindings = append(c.stringBindings, sb)
+	}
 
-  // Parse EPM filter
-  if c.Filter != "" {
-    sb, err := dcerpc.ParseStringBinding(c.Filter)
-    if err != nil {
-      return err
-    }
-    c.stringBindings = append(c.stringBindings, sb)
-  }
+	// Parse EPM filter
+	if c.Filter != "" {
+		sb, err := dcerpc.ParseStringBinding(c.Filter)
+		if err != nil {
+			return err
+		}
+		c.stringBindings = append(c.stringBindings, sb)
+	}
 
-  if c.Proxy == "" {
-    c.netDialer = &net.Dialer{} // FUTURE: additional dial c
+	if c.Proxy == "" {
+		c.netDialer = &net.Dialer{} // FUTURE: additional dial c
 
-  } else {
-    // Parse proxy URL
-    d, err := goexec.ParseProxyURI(c.Proxy)
-    if err != nil {
-      return err
-    }
-    var ok bool
-    if c.dialer, ok = d.(dcerpc.Dialer); !ok {
-      return fmt.Errorf("cannot cast %T to dcerpc.Dialer", d)
-    }
-  }
+	} else {
+		// Parse proxy URL
+		d, err := goexec.ParseProxyURI(c.Proxy)
+		if err != nil {
+			return err
+		}
+		var ok bool
+		if c.dialer, ok = d.(dcerpc.Dialer); !ok {
+			return fmt.Errorf("cannot cast %T to dcerpc.Dialer", d)
+		}
+		c.DcerpcOptions = append(c.DcerpcOptions, dcerpc.WithDialer(c.dialer))
+	}
 
-  // Parse authentication parameters
-  if c.authOptions, err = dcerpcauth.AuthenticationOptions(ctx, c.Credential, c.Target, &dcerpcauth.Options{}); err != nil {
-    return fmt.Errorf("parse auth c: %w", err)
-  }
+	// Parse authentication parameters
+	if c.authOptions, err = dcerpcauth.AuthenticationOptions(ctx, c.Credential, c.Target, &dcerpcauth.Options{}); err != nil {
+		return fmt.Errorf("parse auth c: %w", err)
+	}
 
-  c.Host = c.Target.AddressWithoutPort()
+	c.Host = c.Target.AddressWithoutPort()
 
-  return
+	return
 }
