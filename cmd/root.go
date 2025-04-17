@@ -59,9 +59,10 @@ var (
           exec.Output.RemotePath = util.RandomWindowsTempFile()
         }
         exec.Output.Provider = &smb.OutputFileFetcher{
-          Client: &smbClient,
-          Share:  `C$`,
-          File:   exec.Output.RemotePath,
+          Client:           &smbClient,
+          Share:            `C$`,
+          File:             exec.Output.RemotePath,
+          DeleteOutputFile: true, // TEMP
         }
       }
     },

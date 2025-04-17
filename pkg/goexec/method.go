@@ -18,19 +18,9 @@ type RemoteExecuteMethod interface {
   Execute(ctx context.Context, io *ExecutionIO) error
 }
 
-type RemoteCleanMethod interface {
-  RemoteMethod
-  Clean(ctx context.Context) error
-}
-
 type RemoteExecuteCleanMethod interface {
   RemoteExecuteMethod
   Clean(ctx context.Context) error
-}
-
-type RemoteExecuteCleanMethodWithOutput interface {
-  RemoteExecuteCleanMethod
-  OutputProvider
 }
 
 func ExecuteMethod(ctx context.Context, module RemoteExecuteMethod, execIO *ExecutionIO) (err error) {
@@ -51,6 +41,7 @@ func ExecuteMethod(ctx context.Context, module RemoteExecuteMethod, execIO *Exec
     log.Error().Err(err).Msg("Execution failed")
     return fmt.Errorf("execute: %w", err)
   }
+
   return
 }
 
@@ -61,12 +52,18 @@ func ExecuteCleanMethod(ctx context.Context, module RemoteExecuteCleanMethod, ex
   defer func() {
     if err = module.Clean(ctx); err != nil {
       log.Error().Err(err).Msg("Module cleanup failed")
+      err = nil
     }
   }()
 
-  return ExecuteMethod(ctx, module, execIO)
-}
+  if err = ExecuteMethod(ctx, module, execIO); err != nil {
+    return
+  }
 
-func ExecuteCleanMethodWithOutput(ctx context.Context, module RemoteExecuteCleanMethodWithOutput, execIO *ExecutionIO) (err error) {
-  return ExecuteCleanMethod(ctx, module, execIO)
+  if execIO.Output != nil && execIO.Output.Provider != nil {
+    defer execIO.Output.Provider.Clean(ctx)
+
+    execIO.Output.Provider.GetOutput(ctx, execIO.Output.Writer)
+  }
+  return
 }

@@ -3,14 +3,14 @@ package goexec
 import (
   "bytes"
   "context"
-  "errors"
   "fmt"
   "io"
   "os"
 )
 
 type OutputProvider interface {
-  GetOutput(ctx context.Context) (out io.ReadCloser, err error)
+  GetOutput(ctx context.Context, writer io.Writer) (err error)
+  Clean(ctx context.Context) (err error)
 }
 
 type ExecutionIO struct {
@@ -24,6 +24,7 @@ type ExecutionOutput struct {
   NoDelete   bool
   RemotePath string
   Provider   OutputProvider
+  Writer     io.WriteCloser
 }
 
 type ExecutionInput struct {
@@ -34,16 +35,22 @@ type ExecutionInput struct {
   CommandLine    string
 }
 
-func (execIO *ExecutionIO) GetOutput(ctx context.Context) (out io.ReadCloser, err error) {
-
+func (execIO *ExecutionIO) GetOutput(ctx context.Context) (err error) {
   if execIO.Output.Provider != nil {
-    return execIO.Output.Provider.GetOutput(ctx)
+    return execIO.Output.Provider.GetOutput(ctx, execIO.Output.Writer)
   }
-  return nil, errors.New("output provider not set")
+  return nil
 }
 
 func (execIO *ExecutionIO) CommandLine() string {
   return execIO.Input.Command()
+}
+
+func (execIO *ExecutionIO) Clean(ctx context.Context) (err error) {
+  if execIO.Output.Provider != nil {
+    return execIO.Output.Provider.Clean(ctx)
+  }
+  return nil
 }
 
 func (execIO *ExecutionIO) String() (cmd string) {

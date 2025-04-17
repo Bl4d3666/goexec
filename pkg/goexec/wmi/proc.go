@@ -5,7 +5,6 @@ import (
   "errors"
   "github.com/FalconOpsLLC/goexec/pkg/goexec"
   "github.com/rs/zerolog"
-  "io"
 )
 
 const (
@@ -52,13 +51,4 @@ func (m *WmiProc) Execute(ctx context.Context, execIO *goexec.ExecutionIO) (err 
     log.Error().Err(err).Uint32("return", ret).Msg("Process returned non-zero exit code")
   }
   return
-}
-
-func (m *WmiProc) GetOutput(ctx context.Context) (reader io.ReadCloser, err error) {
-
-  if m.IO.Output != nil {
-
-    return m.IO.GetOutput(ctx)
-  }
-  return nil, errors.New("no available output provider")
 }

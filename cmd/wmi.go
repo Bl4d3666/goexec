@@ -149,12 +149,9 @@ References:
       }
 
       if outputPath != "" {
-        if reader, err := wmiProc.GetOutput(ctx); err == nil {
-          _, err = io.Copy(writer, reader)
-
-        } else {
+        if err = wmiProc.IO.GetOutput(ctx); err != nil {
           log.Error().Err(err).Msg("Failed to get process execution output")
-          returnCode = 2
+          returnCode = 4
         }
       }
     },

@@ -7,7 +7,6 @@ import (
   tschexec "github.com/FalconOpsLLC/goexec/pkg/goexec/tsch"
   "github.com/oiweiwei/go-msrpc/ssp/gssapi"
   "github.com/spf13/cobra"
-  "io"
   "os"
   "time"
 )
@@ -109,31 +108,19 @@ References:
 
       ctx := log.WithContext(gssapi.NewSecurityContext(context.TODO()))
 
-      var writer io.WriteCloser
-
       if outputPath == "-" {
-        writer = os.Stdout
+        exec.Output.Writer = os.Stdout
 
       } else if outputPath != "" {
 
-        if writer, err = os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE, 0644); err != nil {
+        if exec.Output.Writer, err = os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE, 0644); err != nil {
           log.Fatal().Err(err).Msg("Failed to open output file")
         }
-        defer writer.Close()
+        defer exec.Output.Writer.Close()
       }
 
       if err = goexec.ExecuteCleanMethod(ctx, &tschDemand, &exec); err != nil {
         log.Fatal().Err(err).Msg("Operation failed")
-      }
-
-      if outputPath != "" {
-        if reader, err := tschDemand.GetOutput(ctx); err == nil {
-          _, err = io.Copy(writer, reader)
-
-        } else {
-          log.Error().Err(err).Msg("Failed to get process execution output")
-          returnCode = 2
-        }
       }
     },
   }
@@ -170,30 +157,25 @@ References:
 
       ctx := log.WithContext(gssapi.NewSecurityContext(context.TODO()))
 
-      var writer io.WriteCloser
-
       if outputPath == "-" {
-        writer = os.Stdout
+        exec.Output.Writer = os.Stdout
 
       } else if outputPath != "" {
 
-        if writer, err = os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE, 0644); err != nil {
+        if exec.Output.Writer, err = os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE, 0644); err != nil {
           log.Fatal().Err(err).Msg("Failed to open output file")
         }
-        defer writer.Close()
+        defer exec.Output.Writer.Close()
       }
 
-      if err = goexec.ExecuteCleanMethod(ctx, &tschDemand, &exec); err != nil {
+      if err = goexec.ExecuteCleanMethod(ctx, &tschCreate, &exec); err != nil {
         log.Fatal().Err(err).Msg("Operation failed")
       }
 
       if outputPath != "" {
-        if reader, err := tschDemand.GetOutput(ctx); err == nil {
-          _, err = io.Copy(writer, reader)
-
-        } else {
+        if err = tschCreate.IO.GetOutput(ctx); err != nil {
           log.Error().Err(err).Msg("Failed to get process execution output")
-          returnCode = 2
+          returnCode = 4
         }
       }
     },

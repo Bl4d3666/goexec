@@ -29,13 +29,15 @@ func (c *Client) Logger(ctx context.Context) zerolog.Logger {
   return zerolog.Ctx(ctx).With().Str("client", c.String()).Logger()
 }
 
-func (c *Client) Mount(_ context.Context, share string) (err error) {
+func (c *Client) Mount(ctx context.Context, share string) (err error) {
 
   if c.sess == nil {
     return errors.New("SMB session not initialized")
   }
 
   c.mount, err = c.sess.Mount(share)
+  zerolog.Ctx(ctx).Debug().Str("share", share).Msg("Mounted SMB share")
+
   return
 }
 
@@ -82,7 +84,7 @@ func (c *Client) Close(ctx context.Context) (err error) {
   if c.conn != nil {
     defer func() {
       if err = c.conn.Close(); err != nil {
-        log.Error().Err(err).Msgf("Failed to close %s connection", c.String())
+        log.Debug().Err(err).Msgf("Failed to close %s connection", c.String())
       }
       log.Debug().Msgf("Closed %s connection", c.String())
     }()
@@ -92,7 +94,7 @@ func (c *Client) Close(ctx context.Context) (err error) {
   if c.sess != nil {
     defer func() {
       if err = c.sess.Logoff(); err != nil {
-        log.Error().Err(err).Msgf("Failed to discard %s session", c.String())
+        log.Debug().Err(err).Msgf("Failed to discard %s session", c.String())
       }
       log.Debug().Msgf("Discarded %s session", c.String())
     }()
@@ -102,7 +104,7 @@ func (c *Client) Close(ctx context.Context) (err error) {
   if c.mount != nil {
     defer func() {
       if err = c.mount.Umount(); err != nil {
-        log.Error().Err(err).Msg("Failed to unmount share")
+        log.Debug().Err(err).Msg("Failed to unmount share")
       }
       log.Debug().Msg("Unmounted file share")
     }()

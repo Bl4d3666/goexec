@@ -2,12 +2,10 @@ package tschexec
 
 import (
   "context"
-  "errors"
   "fmt"
   "github.com/FalconOpsLLC/goexec/pkg/goexec"
   "github.com/oiweiwei/go-msrpc/msrpc/tsch/itaskschedulerservice/v1"
   "github.com/rs/zerolog"
-  "io"
 )
 
 const (
@@ -80,12 +78,4 @@ func (m *TschDemand) Execute(ctx context.Context, in *goexec.ExecutionIO) (err e
     log.Info().Msg("Task started successfully")
   }
   return
-}
-
-func (m *TschDemand) GetOutput(ctx context.Context) (reader io.ReadCloser, err error) {
-
-  if m.IO.Output != nil {
-    return m.IO.GetOutput(ctx)
-  }
-  return nil, errors.New("no available output provider")
 }
