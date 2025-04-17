@@ -80,15 +80,17 @@ func (c *Client) Close(ctx context.Context) (err error) {
 
   log := c.Logger(ctx)
 
-  // Close TCP connection
-  if c.conn != nil {
-    defer func() {
-      if err = c.conn.Close(); err != nil {
-        log.Debug().Err(err).Msgf("Failed to close %s connection", c.String())
-      }
-      log.Debug().Msgf("Closed %s connection", c.String())
-    }()
-  }
+  // Close TCP connection - Not needed?
+  /*
+     if c.conn != nil {
+       defer func() {
+         if err = c.conn.Close(); err != nil {
+           log.Debug().Err(err).Msgf("Failed to close %s connection", c.String())
+         }
+         log.Debug().Msgf("Closed %s connection", c.String())
+       }()
+     }
+  */
 
   // Close SMB session
   if c.sess != nil {
