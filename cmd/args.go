@@ -6,6 +6,7 @@ import (
   "fmt"
   "github.com/spf13/cobra"
   "github.com/spf13/pflag"
+  "os"
 )
 
 func registerRpcFlags(cmd *cobra.Command) {
@@ -122,5 +123,20 @@ func argsOutput(methods ...string) func(cmd *cobra.Command, args []string) error
       as = append(as, argsSmbClient())
     }
   }
-  return args(as...)
+
+  return args(append(as, func(*cobra.Command, []string) (err error) {
+
+    if outputPath != "" {
+      if outputPath == "-" {
+        exec.Output.Writer = os.Stdout
+
+      } else if outputPath != "" {
+
+        if exec.Output.Writer, err = os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE, 0644); err != nil {
+          log.Fatal().Err(err).Msg("Failed to open output file")
+        }
+      }
+    }
+    return
+  })...)
 }

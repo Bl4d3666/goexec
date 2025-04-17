@@ -7,7 +7,6 @@ import (
   tschexec "github.com/FalconOpsLLC/goexec/pkg/goexec/tsch"
   "github.com/oiweiwei/go-msrpc/ssp/gssapi"
   "github.com/spf13/cobra"
-  "os"
   "time"
 )
 
@@ -64,6 +63,7 @@ func tschCreateCmdInit() {
   tschCreateCmd.Flags().StringVar(&tschCreate.UserSid, "sid", "S-1-5-18", "User SID to impersonate")
 
   registerProcessExecutionArgs(tschCreateCmd)
+  registerExecutionOutputArgs(tschCreateCmd)
 
   tschCreateCmd.MarkFlagsMutuallyExclusive("name", "path")
 }
@@ -92,7 +92,7 @@ References:
 `,
     Args: args(
       argsRpcClient("cifs"),
-      argsSmbClient(),
+      argsOutput("smb"),
       argsTschDemand,
     ),
 
@@ -107,17 +107,6 @@ References:
       }
 
       ctx := log.WithContext(gssapi.NewSecurityContext(context.TODO()))
-
-      if outputPath == "-" {
-        exec.Output.Writer = os.Stdout
-
-      } else if outputPath != "" {
-
-        if exec.Output.Writer, err = os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE, 0644); err != nil {
-          log.Fatal().Err(err).Msg("Failed to open output file")
-        }
-        defer exec.Output.Writer.Close()
-      }
 
       if err = goexec.ExecuteCleanMethod(ctx, &tschDemand, &exec); err != nil {
         log.Fatal().Err(err).Msg("Operation failed")
@@ -141,7 +130,7 @@ References:
 `,
     Args: args(
       argsRpcClient("cifs"),
-      argsSmbClient(),
+      argsOutput("smb"),
       argsTschCreate,
     ),
 
@@ -157,26 +146,8 @@ References:
 
       ctx := log.WithContext(gssapi.NewSecurityContext(context.TODO()))
 
-      if outputPath == "-" {
-        exec.Output.Writer = os.Stdout
-
-      } else if outputPath != "" {
-
-        if exec.Output.Writer, err = os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE, 0644); err != nil {
-          log.Fatal().Err(err).Msg("Failed to open output file")
-        }
-        defer exec.Output.Writer.Close()
-      }
-
       if err = goexec.ExecuteCleanMethod(ctx, &tschCreate, &exec); err != nil {
         log.Fatal().Err(err).Msg("Operation failed")
-      }
-
-      if outputPath != "" {
-        if err = tschCreate.IO.GetOutput(ctx); err != nil {
-          log.Error().Err(err).Msg("Failed to get process execution output")
-          returnCode = 4
-        }
       }
     },
   }
