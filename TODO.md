@@ -6,9 +6,10 @@
 
 - [X] Clean up TSCH module
 - [X] Session hijacking
-- [ ] Add command to tsch - update task if it already exists. See https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/849c131a-64e4-46ef-b015-9d4c599c5167 (`flags` argument)
 - [ ] Add more trigger types
-- [ ] Generate random name/path
+- [ ] Add command to tsch - update task if it already exists. See https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/849c131a-64e4-46ef-b015-9d4c599c5167 (`flags` argument)
+- [X] Generate random name/path
+- [X] Output
 
 ### SCMR
 
