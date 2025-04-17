@@ -23,12 +23,12 @@ var (
 	proxy        string
 
 	// === Logging ===
-	logJson   bool          // Log output in JSON lines
-	logDebug  bool          // Output debug log messages
-	logQuiet  bool          // Suppress logging output
-	logOutput string        // Log output file
-	logLevel  zerolog.Level = zerolog.InfoLevel
-	logFile   io.Writer     = os.Stderr
+	logJson   bool           // Log output in JSON lines
+	logDebug  bool           // Output debug log messages
+	logQuiet  bool           // Suppress logging output
+	logOutput string         // Log output file
+	logLevel  zerolog.Level  = zerolog.InfoLevel
+	logFile   io.WriteCloser = os.Stderr
 	log       zerolog.Logger
 	// ===============
 
@@ -54,10 +54,11 @@ var (
 			// Parse logging options
 			{
 				if logOutput != "" {
-					logFile, err = os.OpenFile(logOutput, os.O_WRONLY|os.O_CREATE, 0644)
+					logFile, err = os.OpenFile(logOutput, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 					if err != nil {
 						return
 					}
+					logJson = true
 				}
 				if logQuiet {
 					logLevel = zerolog.ErrorLevel
@@ -65,7 +66,7 @@ var (
 					logLevel = zerolog.DebugLevel
 				}
 				if logJson {
-					log = zerolog.New(logFile)
+					log = zerolog.New(logFile).With().Timestamp().Logger()
 				} else {
 					log = zerolog.New(zerolog.ConsoleWriter{Out: logFile}).With().Timestamp().Logger()
 				}
@@ -92,6 +93,12 @@ var (
 			}
 			return
 		},
+
+		PersistentPostRun: func(cmd *cobra.Command, args []string) {
+			if err := logFile.Close(); err != nil {
+				// ...
+			}
+		},
 	}
 )
 
@@ -109,7 +116,7 @@ func init() {
 			logOpts.BoolVar(&logDebug, "debug", false, "Enable debug logging")
 			logOpts.BoolVar(&logJson, "json", false, "Write logging output in JSON lines")
 			logOpts.BoolVar(&logQuiet, "quiet", false, "Disable info logging")
-			logOpts.StringVarP(&logOutput, "log-file", "O", "", "Write logging output to file")
+			logOpts.StringVarP(&logOutput, "log-file", "O", "", "Write JSON logging output to file")
 			rootCmd.PersistentFlags().AddFlagSet(logOpts)
 		}
 
