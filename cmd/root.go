@@ -69,6 +69,7 @@ var (
 				} else {
 					log = zerolog.New(zerolog.ConsoleWriter{Out: logFile}).With().Timestamp().Logger()
 				}
+				log = log.Level(logLevel)
 			}
 
 			if proxy != "" {
@@ -108,7 +109,7 @@ func init() {
 			logOpts.BoolVar(&logDebug, "debug", false, "Enable debug logging")
 			logOpts.BoolVar(&logJson, "json", false, "Write logging output in JSON lines")
 			logOpts.BoolVar(&logQuiet, "quiet", false, "Disable info logging")
-			logOpts.StringVarP(&logOutput, "log-out", "O", "", "Write logging output to file")
+			logOpts.StringVarP(&logOutput, "log-file", "O", "", "Write logging output to file")
 			rootCmd.PersistentFlags().AddFlagSet(logOpts)
 		}
 
