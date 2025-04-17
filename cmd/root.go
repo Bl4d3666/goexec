@@ -11,18 +11,26 @@ import (
 	"github.com/oiweiwei/go-msrpc/ssp/gssapi"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+	"io"
 	"os"
 )
 
 var (
-	debug        bool
-	logJson      bool
 	returnCode   int
 	outputMethod string
 	outputPath   string
 	proxy        string
 
-	log zerolog.Logger
+	// === Logging ===
+	logJson   bool          // Log output in JSON lines
+	logDebug  bool          // Output debug log messages
+	logQuiet  bool          // Suppress logging output
+	logOutput string        // Log output file
+	logLevel  zerolog.Level = zerolog.InfoLevel
+	logFile   io.Writer     = os.Stderr
+	log       zerolog.Logger
+	// ===============
 
 	rpcClient dce.Client
 	smbClient smb.Client
@@ -39,19 +47,28 @@ var (
 	rootCmd = &cobra.Command{
 		Use:   "goexec",
 		Short: `Windows remote execution multitool`,
-		Long:  `TODO`,
+		Long:  ``,
 
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) (err error) {
 
-			if logJson {
-				log = zerolog.New(os.Stderr)
-			} else {
-				log = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr})
-			}
-
-			log = log.Level(zerolog.InfoLevel).With().Timestamp().Logger()
-			if debug {
-				log = log.Level(zerolog.DebugLevel)
+			// Parse logging options
+			{
+				if logOutput != "" {
+					logFile, err = os.OpenFile(logOutput, os.O_WRONLY|os.O_CREATE, 0644)
+					if err != nil {
+						return
+					}
+				}
+				if logQuiet {
+					logLevel = zerolog.ErrorLevel
+				} else if logDebug {
+					logLevel = zerolog.DebugLevel
+				}
+				if logJson {
+					log = zerolog.New(logFile)
+				} else {
+					log = zerolog.New(zerolog.ConsoleWriter{Out: logFile}).With().Timestamp().Logger()
+				}
 			}
 
 			if proxy != "" {
@@ -72,6 +89,7 @@ var (
 					}
 				}
 			}
+			return
 		},
 	}
 )
@@ -83,9 +101,23 @@ func init() {
 
 		rootCmd.InitDefaultVersionFlag()
 		rootCmd.InitDefaultHelpCmd()
-		rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
-		rootCmd.PersistentFlags().BoolVar(&logJson, "log-json", false, "Log in JSON format")
-		rootCmd.PersistentFlags().StringVarP(&proxy, "proxy", "x", "", "Proxy URL")
+
+		// Logging flags
+		{
+			logOpts := pflag.NewFlagSet("Logging", pflag.ExitOnError)
+			logOpts.BoolVar(&logDebug, "debug", false, "Enable debug logging")
+			logOpts.BoolVar(&logJson, "json", false, "Write logging output in JSON lines")
+			logOpts.BoolVar(&logQuiet, "quiet", false, "Disable info logging")
+			logOpts.StringVarP(&logOutput, "log-out", "O", "", "Write logging output to file")
+			rootCmd.PersistentFlags().AddFlagSet(logOpts)
+		}
+
+		// Global networking flags
+		{
+			netOpts := pflag.NewFlagSet("Network", pflag.ExitOnError)
+			netOpts.StringVarP(&proxy, "proxy", "x", "", "Proxy URL")
+			rootCmd.PersistentFlags().AddFlagSet(netOpts)
+		}
 
 		dcomCmdInit()
 		rootCmd.AddCommand(dcomCmd)
