@@ -41,6 +41,10 @@
 - [ ] Add SMB file transfer interface
 - [ ] README
 
+#### CLI
+
+- [ ] `--full-help`/`-H`
+
 ## Resolve Eventually
 
 - [ ] `--shell` option
