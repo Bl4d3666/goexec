@@ -49,11 +49,12 @@ func argsTask(*cobra.Command, []string) error {
   case tschTask == "":
     tschTask = `\` + util.RandomString()
   case tschexec.ValidateTaskPath(tschTask) == nil:
-    return nil
   case tschexec.ValidateTaskName(tschTask) == nil:
     tschTask = `\` + tschTask
+  default:
+    return fmt.Errorf("invalid task name or path: %q", tschTask)
   }
-  return fmt.Errorf("invalid task name or path: %q", tschTask)
+  return nil
 }
 
 var (
