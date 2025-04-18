@@ -146,7 +146,7 @@ func init() {
 
     modules := &cobra.Group{
       ID:    "module",
-      Title: "Execution Modules:",
+      Title: "Execution Commands:",
     }
     rootCmd.AddGroup(modules)
 
@@ -156,7 +156,7 @@ func init() {
       logOpts.BoolVar(&logDebug, "debug", false, "Enable debug logging")
       logOpts.BoolVar(&logJson, "json", false, "Write logging output in JSON lines")
       logOpts.BoolVar(&logQuiet, "quiet", false, "Disable info logging")
-      logOpts.StringVarP(&logOutput, "log-file", "O", "", "Write JSON logging output to file")
+      logOpts.StringVarP(&logOutput, "log-file", "O", "", "Write JSON logging output to `file`")
       rootCmd.PersistentFlags().AddFlagSet(logOpts)
       flagGroups["Logging"] = logOpts
     }
@@ -164,7 +164,7 @@ func init() {
     // Global networking flags
     {
       netOpts := pflag.NewFlagSet("Network", pflag.ExitOnError)
-      netOpts.StringVarP(&proxy, "proxy", "x", "", "Proxy URL")
+      netOpts.StringVarP(&proxy, "proxy", "x", "", "Proxy `URI`")
       rootCmd.PersistentFlags().AddFlagSet(netOpts)
     }
 
