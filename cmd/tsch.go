@@ -64,9 +64,10 @@ var (
   tschTask string
 
   tschCmd = &cobra.Command{
-    Use:   "tsch",
-    Short: "Establish execution via Windows Task Scheduler (MS-TSCH)",
-    Args:  cobra.NoArgs,
+    Use:     "tsch",
+    Short:   "Execute with Windows Task Scheduler (MS-TSCH)",
+    GroupID: "module",
+    Args:    cobra.NoArgs,
   }
 
   tschDemandCmd = &cobra.Command{
@@ -78,8 +79,8 @@ var (
   additionally call SchRpcRun to forcefully start the task.
 
 References:
-  SchRpcRegisterTask - https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/849c131a-64e4-46ef-b015-9d4c599c5167
-  SchRpcRun - https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/77f2250d-500a-40ee-be18-c82f7079c4f0
+  - https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/849c131a-64e4-46ef-b015-9d4c599c5167
+  - https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/77f2250d-500a-40ee-be18-c82f7079c4f0
 `,
     Args: args(
       argsRpcClient("cifs"),

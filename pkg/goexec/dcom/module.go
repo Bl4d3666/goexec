@@ -1,120 +1,131 @@
 package dcomexec
 
 import (
-	"context"
-	"errors"
-	"fmt"
-	"github.com/FalconOpsLLC/goexec/pkg/goexec"
-	"github.com/FalconOpsLLC/goexec/pkg/goexec/dce"
-	"github.com/oiweiwei/go-msrpc/dcerpc"
-	"github.com/oiweiwei/go-msrpc/msrpc/dcom"
-	"github.com/oiweiwei/go-msrpc/msrpc/dcom/iremotescmactivator/v0"
-	"github.com/oiweiwei/go-msrpc/msrpc/dcom/oaut/idispatch/v0"
-	"github.com/rs/zerolog"
+  "context"
+  "errors"
+  "fmt"
+  "github.com/FalconOpsLLC/goexec/pkg/goexec"
+  "github.com/FalconOpsLLC/goexec/pkg/goexec/dce"
+  "github.com/oiweiwei/go-msrpc/dcerpc"
+  "github.com/oiweiwei/go-msrpc/midl/uuid"
+  "github.com/oiweiwei/go-msrpc/msrpc/dcom"
+  "github.com/oiweiwei/go-msrpc/msrpc/dcom/iremotescmactivator/v0"
+  "github.com/oiweiwei/go-msrpc/msrpc/dcom/oaut/idispatch/v0"
+  "github.com/oiweiwei/go-msrpc/msrpc/dtyp"
+  "github.com/rs/zerolog"
 )
 
 const (
-	ModuleName = "DCOM"
+  ModuleName = "DCOM"
 )
 
 type Dcom struct {
-	goexec.Cleaner
+  goexec.Cleaner
 
-	Client *dce.Client
+  Client  *dce.Client
+  ClassID string
 
-	dispatchClient idispatch.DispatchClient
+  dispatchClient idispatch.DispatchClient
 }
 
 func (m *Dcom) Connect(ctx context.Context) (err error) {
 
-	if err = m.Client.Connect(ctx); err == nil {
-		m.AddCleaner(m.Client.Close)
-	}
-	return
+  if err = m.Client.Connect(ctx); err == nil {
+    m.AddCleaner(m.Client.Close)
+  }
+  return
 }
 
 func (m *Dcom) Init(ctx context.Context) (err error) {
 
-	log := zerolog.Ctx(ctx).With().
-		Str("module", ModuleName).Logger()
+  log := zerolog.Ctx(ctx).With().
+    Str("module", ModuleName).Logger()
 
-	if m.Client == nil || m.Client.Dce() == nil {
-		return errors.New("DCE connection not initialized")
-	}
+  if m.Client == nil || m.Client.Dce() == nil {
+    return errors.New("DCE connection not initialized")
+  }
 
-	opts := []dcerpc.Option{
-		dcerpc.WithSign(),
-	}
+  m.ClassID = "49B2791A-B1AE-4C90-9B8E-E860BA07F889"
+  //m.ClassID = "9BA05972-F6A8-11CF-A442-00A0C90A8F39"
+  class := dcom.ClassID(*dtyp.GUIDFromUUID(uuid.MustParse(m.ClassID)))
 
-	inst := &dcom.InstantiationInfoData{
-		ClassID:          &MmcClsid,
-		IID:              []*dcom.IID{IDispatchIID},
-		ClientCOMVersion: ComVersion,
-	}
-	ac := &dcom.ActivationContextInfoData{}
-	loc := &dcom.LocationInfoData{}
-	scm := &dcom.SCMRequestInfoData{
-		RemoteRequest: &dcom.CustomRemoteRequestSCMInfo{
-			RequestedProtocolSequences: []uint16{7},
-		},
-	}
+  if class.GUID() == nil {
+    return fmt.Errorf("invalid class ID: %s", m.ClassID)
+  }
 
-	ap := &dcom.ActivationProperties{
-		DestinationContext: 2,
-		Properties:         []dcom.ActivationProperty{inst, ac, loc, scm},
-	}
+  opts := []dcerpc.Option{
+    dcerpc.WithSign(),
+  }
 
-	apin, err := ap.ActivationPropertiesIn()
-	if err != nil {
-		return err
-	}
+  inst := &dcom.InstantiationInfoData{
+    ClassID:          &class,
+    IID:              []*dcom.IID{IDispatchIID},
+    ClientCOMVersion: ComVersion,
+  }
+  ac := &dcom.ActivationContextInfoData{}
+  loc := &dcom.LocationInfoData{}
+  scm := &dcom.SCMRequestInfoData{
+    RemoteRequest: &dcom.CustomRemoteRequestSCMInfo{
+      RequestedProtocolSequences: []uint16{7},
+    },
+  }
 
-	act, err := iremotescmactivator.NewRemoteSCMActivatorClient(ctx, m.Client.Dce())
-	if err != nil {
-		return err
-	}
+  ap := &dcom.ActivationProperties{
+    DestinationContext: 2,
+    Properties:         []dcom.ActivationProperty{inst, ac, loc, scm},
+  }
 
-	cr, err := act.RemoteCreateInstance(ctx, &iremotescmactivator.RemoteCreateInstanceRequest{
-		ORPCThis: &dcom.ORPCThis{
-			Version: ComVersion,
-			Flags:   1,
-			CID:     &RandCid,
-		},
-		ActPropertiesIn: apin,
-	})
-	if err != nil {
-		return err
-	}
-	log.Info().Msg("RemoteCreateInstance succeeded")
+  apin, err := ap.ActivationPropertiesIn()
+  if err != nil {
+    return err
+  }
 
-	apout := new(dcom.ActivationProperties)
-	if err = apout.Parse(cr.ActPropertiesOut); err != nil {
-		return err
-	}
-	si := apout.SCMReplyInfoData()
-	pi := apout.PropertiesOutInfo()
+  act, err := iremotescmactivator.NewRemoteSCMActivatorClient(ctx, m.Client.Dce())
+  if err != nil {
+    return err
+  }
 
-	if si == nil {
-		return fmt.Errorf("remote create instance response: SCMReplyInfoData is nil")
-	}
+  cr, err := act.RemoteCreateInstance(ctx, &iremotescmactivator.RemoteCreateInstanceRequest{
+    ORPCThis: &dcom.ORPCThis{
+      Version: ComVersion,
+      Flags:   1,
+      CID:     &RandCid,
+    },
+    ActPropertiesIn: apin,
+  })
+  if err != nil {
+    return err
+  }
+  log.Info().Msg("RemoteCreateInstance succeeded")
 
-	if pi == nil {
-		return fmt.Errorf("remote create instance response: PropertiesOutInfo is nil")
-	}
+  apout := new(dcom.ActivationProperties)
+  if err = apout.Parse(cr.ActPropertiesOut); err != nil {
+    return err
+  }
+  si := apout.SCMReplyInfoData()
+  pi := apout.PropertiesOutInfo()
 
-	opts = append(opts, si.RemoteReply.OXIDBindings.EndpointsByProtocol("ncacn_ip_tcp")...)
+  if si == nil {
+    return fmt.Errorf("remote create instance response: SCMReplyInfoData is nil")
+  }
 
-	err = m.Client.Reconnect(ctx, opts...)
-	if err != nil {
-		return err
-	}
-	log.Info().Msg("created new DCERPC dialer")
+  if pi == nil {
+    return fmt.Errorf("remote create instance response: PropertiesOutInfo is nil")
+  }
 
-	m.dispatchClient, err = idispatch.NewDispatchClient(ctx, m.Client.Dce(), dcom.WithIPID(pi.InterfaceData[0].IPID()))
-	if err != nil {
-		return err
-	}
-	log.Info().Msg("created IDispatch Client")
+  opts = append(opts, si.RemoteReply.OXIDBindings.EndpointsByProtocol("ncacn_ip_tcp")...)
 
-	return
+  err = m.Client.Reconnect(ctx, opts...)
+  if err != nil {
+    return err
+  }
+  log.Info().Msg("created new DCERPC dialer")
+
+  m.dispatchClient, err = idispatch.NewDispatchClient(ctx, m.Client.Dce(), dcom.WithIPID(pi.InterfaceData[0].IPID()))
+  if err != nil {
+    return err
+  }
+  log.Info().Msg("created IDispatch Client")
+
+  return
 }

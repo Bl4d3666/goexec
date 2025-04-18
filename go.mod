@@ -6,10 +6,12 @@ require (
 	github.com/RedTeamPentesting/adauth v0.2.0
 	github.com/google/uuid v1.6.0
 	github.com/oiweiwei/go-msrpc v1.2.5
+	github.com/oiweiwei/go-smb2.fork v1.0.0
 	github.com/rs/zerolog v1.34.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/pflag v1.0.6
 	golang.org/x/net v0.39.0
+	golang.org/x/term v0.31.0
 )
 
 require (
@@ -25,7 +27,6 @@ require (
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/oiweiwei/go-smb2.fork v1.0.0 // indirect
 	github.com/oiweiwei/gokrb5.fork/v9 v9.0.2 // indirect
 	golang.org/x/crypto v0.37.0 // indirect
 	golang.org/x/sys v0.32.0 // indirect

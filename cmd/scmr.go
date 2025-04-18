@@ -64,20 +64,21 @@ var (
   scmrDelete scmrexec.ScmrDelete
 
   scmrCmd = &cobra.Command{
-    Use:   "scmr",
-    Short: "Establish execution via SCMR",
-    Args:  cobra.NoArgs,
+    Use:     "scmr",
+    Short:   "Execute with Service Control Manager Remote (MS-SCMR)",
+    GroupID: "module",
+    Args:    cobra.NoArgs,
   }
 
   scmrCreateCmd = &cobra.Command{
     Use:   "create [target]",
-    Short: "Create & run a new Windows service to gain execution",
+    Short: "Spawn a remote process by creating & running a Windows service",
     Long: `Description:
-  The create method calls RCreateServiceW to create a new Windows service with
-  the provided executable & arguments as the lpBinaryPathName
+  The create method calls RCreateServiceW to create a new Windows service on the
+  remote target with the provided executable & arguments as the lpBinaryPathName
 
 References:
-  https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-scmr/6a8ca926-9477-4dd4-b766-692fab07227e
+  - https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-scmr/6a8ca926-9477-4dd4-b766-692fab07227e
 `,
     Args: argsRpcClient("cifs"),
 
