@@ -54,7 +54,7 @@ var (
 
 	wmiCmd = &cobra.Command{
 		Use:   "wmi",
-		Short: "Establish execution via WMI",
+		Short: "Establish execution via Windows Management Instrumentation Remote Protocol (MS-WMI)",
 		Args:  cobra.NoArgs,
 	}
 

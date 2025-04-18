@@ -40,7 +40,7 @@ var (
 		Output: new(goexec.ExecutionOutput),
 	}
 
-	authOpts   *adauth.Options
+	adAuthOpts *adauth.Options
 	credential *adauth.Credential
 	target     *adauth.Target
 
@@ -103,6 +103,13 @@ var (
 )
 
 func init() {
+	// Auth init
+	{
+		gssapi.AddMechanism(ssp.SPNEGO)
+		gssapi.AddMechanism(ssp.NTLM)
+		gssapi.AddMechanism(ssp.KRB5)
+	}
+
 	// Cobra init
 	{
 		cobra.EnableCommandSorting = false
@@ -127,24 +134,27 @@ func init() {
 			rootCmd.PersistentFlags().AddFlagSet(netOpts)
 		}
 
-		dcomCmdInit()
-		rootCmd.AddCommand(dcomCmd)
-		wmiCmdInit()
-		rootCmd.AddCommand(wmiCmd)
-		scmrCmdInit()
-		rootCmd.AddCommand(scmrCmd)
-		tschCmdInit()
-		rootCmd.AddCommand(tschCmd)
-	}
+		// Authentication flags
+		{
+			adAuthOpts = &adauth.Options{
+				Debug: log.Debug().Msgf,
+			}
+			authOpts := pflag.NewFlagSet("Authentication", pflag.ExitOnError)
+			adAuthOpts.RegisterFlags(authOpts)
+			rootCmd.PersistentFlags().AddFlagSet(authOpts)
+		}
 
-	// Auth init
-	{
-		gssapi.AddMechanism(ssp.SPNEGO)
-		gssapi.AddMechanism(ssp.NTLM)
-		gssapi.AddMechanism(ssp.KRB5)
-
-		authOpts = &adauth.Options{Debug: log.Debug().Msgf}
-		authOpts.RegisterFlags(rootCmd.PersistentFlags())
+		// Modules init
+		{
+			dcomCmdInit()
+			rootCmd.AddCommand(dcomCmd)
+			wmiCmdInit()
+			rootCmd.AddCommand(wmiCmd)
+			scmrCmdInit()
+			rootCmd.AddCommand(scmrCmd)
+			tschCmdInit()
+			rootCmd.AddCommand(tschCmd)
+		}
 	}
 }
 
