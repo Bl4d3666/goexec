@@ -6,10 +6,6 @@ import (
   "github.com/rs/zerolog"
 )
 
-const (
-  MethodCall = "Call"
-)
-
 type WmiCall struct {
   Wmi
 

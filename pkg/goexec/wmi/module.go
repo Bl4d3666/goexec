@@ -75,7 +75,7 @@ func (m *Wmi) Init(ctx context.Context) (err error) {
     stringBinding, err := dcerpc.ParseStringBinding("ncacn_ip_tcp:" + bind.NetworkAddr) // TODO: try bind.String()
 
     if err != nil {
-      log.Error().Err(err).Msg("Failed to parse string binding")
+      log.Debug().Err(err).Msg("Failed to parse string binding")
       continue
     }
     stringBinding.NetworkAddress = m.Client.Target.AddressWithoutPort()
@@ -129,8 +129,8 @@ func (m *Wmi) query(ctx context.Context, class, method string, values map[string
     return nil, errors.New("module has not been initialized")
   }
   if out, err := query.NewBuilder(ctx, m.servicesClient, ComVersion).
-    Spawn(class). // The class to instantiate (i.e. Win32_Process)
-    Method(method). // The method to call (i.e. Create)
+    Spawn(class). // The class to instantiate (i.e., Win32_Process)
+    Method(method). // The method to call (i.e., Create)
     Values(values). // The values to pass to method
     Exec().
     Object(); err == nil {
