@@ -1,7 +1,6 @@
 package scmrexec
 
 import (
-  "github.com/FalconOpsLLC/goexec/internal/windows"
   "github.com/oiweiwei/go-msrpc/msrpc/scmr/svcctl/v2"
 )
 

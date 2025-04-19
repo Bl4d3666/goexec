@@ -24,7 +24,6 @@
 - [X] Add DCOM module
 - [X] MMC20.Application method
 - [X] Output
-- [ ] ShellWindows & ShellBrowserWindow
 
 ### WMI
 
@@ -41,15 +40,15 @@
 - [ ] Add SMB file transfer interface
 - [ ] README
 
-#### CLI
-
-- [ ] `--full-help`/`-H`
-
 ## Resolve Eventually
 
 - [ ] `--shell` option
 - [ ] Add Go tests
 - [ ] ability to specify multiple targets
+
+### DCOM
+
+- [ ] ShellWindows & ShellBrowserWindow
 
 ### WinRM
 
