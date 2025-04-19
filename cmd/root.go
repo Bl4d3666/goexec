@@ -17,8 +17,43 @@ import (
   "os"
 )
 
+type flagSet struct {
+  Label string
+  Flags *pflag.FlagSet
+}
+
+const helpTemplate = `Usage:{{if .Runnable}}
+  {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
+  {{.CommandPath}} [command] [flags]{{end}}{{if gt (len .Aliases) 0}}
+
+Aliases:
+{{.NameAndAliases}}{{end}}{{if .HasExample}}
+
+Examples:
+{{.Example}}{{end}}{{if .HasAvailableSubCommands}}{{$cmds := .Commands}}{{if eq (len .Groups) 0}}
+
+Available Commands:{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{else}}{{range $group := .Groups}}
+
+{{.Title}}{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}
+
+Additional Commands:{{range $cmds}}{{if (and (eq .GroupID "") (or .IsAvailableCommand (eq .Name "help")))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if (ne .Name "completion")}}{{range $_, $v := cmdFlags .}}
+
+{{$v.Label|trimTrailingWhitespaces}}:
+{{flags $v.Flags|trimTrailingWhitespaces}}{{end}}{{end}}{{if .HasHelpSubCommands}}
+
+Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
+{{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
+
+Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
+`
+
 var (
-  flagGroups = map[string]*pflag.FlagSet{}
+  cmdFlags = make(map[*cobra.Command][]*flagSet)
+
+  defaultAuthFlags, defaultLogFlags, defaultNetRpcFlags *flagSet
 
   returnCode   int
   outputMethod string
@@ -105,28 +140,13 @@ var (
   }
 )
 
-func addFlagSet(fs *pflag.FlagSet) {
-  flagGroups[fs.Name()] = fs
-}
-
-func moduleFlags(cmd *cobra.Command, module string) (fs *pflag.FlagSet) {
-  fs, _ = flagGroups[module]
-  return
-}
-
-// Uses the users terminal size or width of 80 if cannot determine users width
-// Based on https://github.com/spf13/cobra/issues/1805#issuecomment-1246192724
-func wrappedFlagUsages(cmd *pflag.FlagSet) string {
-  fd := int(os.Stdout.Fd())
-  width := 80
-
-  // Get the terminal width and dynamically set
-  termWidth, _, err := term.GetSize(fd)
-  if err == nil {
-    width = termWidth
+func newFlagSet(name string) *flagSet {
+  flags := pflag.NewFlagSet(name, pflag.ExitOnError)
+  flags.SortFlags = false
+  return &flagSet{
+    Label: name,
+    Flags: flags,
   }
-
-  return cmd.FlagUsagesWrapped(width - 1)
 }
 
 func init() {
@@ -140,9 +160,21 @@ func init() {
   // Cobra init
   {
     cobra.EnableCommandSorting = false
-
-    rootCmd.InitDefaultVersionFlag()
-    rootCmd.InitDefaultHelpCmd()
+    {
+      defaultNetRpcFlags = newFlagSet("Network")
+      registerNetworkFlags(defaultNetRpcFlags.Flags)
+    }
+    {
+      defaultLogFlags = newFlagSet("Logging")
+      registerLoggingFlags(defaultLogFlags.Flags)
+    }
+    {
+      defaultAuthFlags = newFlagSet("Authentication")
+      adAuthOpts = &adauth.Options{
+        Debug: log.Debug().Msgf,
+      }
+      adAuthOpts.RegisterFlags(defaultAuthFlags.Flags)
+    }
 
     modules := &cobra.Group{
       ID:    "module",
@@ -150,33 +182,26 @@ func init() {
     }
     rootCmd.AddGroup(modules)
 
-    // Logging flags
-    {
-      logOpts := pflag.NewFlagSet("Logging", pflag.ExitOnError)
-      logOpts.BoolVar(&logDebug, "debug", false, "Enable debug logging")
-      logOpts.BoolVar(&logJson, "json", false, "Write logging output in JSON lines")
-      logOpts.BoolVar(&logQuiet, "quiet", false, "Disable info logging")
-      logOpts.StringVarP(&logOutput, "log-file", "O", "", "Write JSON logging output to `file`")
-      rootCmd.PersistentFlags().AddFlagSet(logOpts)
-      flagGroups["Logging"] = logOpts
+    cmdFlags[rootCmd] = []*flagSet{
+      defaultLogFlags,
+      defaultAuthFlags,
     }
 
-    // Global networking flags
-    {
-      netOpts := pflag.NewFlagSet("Network", pflag.ExitOnError)
-      netOpts.StringVarP(&proxy, "proxy", "x", "", "Proxy `URI`")
-      rootCmd.PersistentFlags().AddFlagSet(netOpts)
-    }
-
-    // Authentication flags
-    {
-      adAuthOpts = &adauth.Options{
-        Debug: log.Debug().Msgf,
+    cobra.AddTemplateFunc("flags", func(fs *pflag.FlagSet) string {
+      if width, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil {
+        return fs.FlagUsagesWrapped(width - 1)
       }
-      authOpts := pflag.NewFlagSet("Authentication", pflag.ExitOnError)
-      adAuthOpts.RegisterFlags(authOpts)
-      rootCmd.PersistentFlags().AddFlagSet(authOpts)
-    }
+      return fs.FlagUsagesWrapped(80 - 1)
+    })
+
+    cobra.AddTemplateFunc("cmdFlags", func(cmd *cobra.Command) []*flagSet {
+      return cmdFlags[cmd]
+    })
+
+    rootCmd.InitDefaultVersionFlag()
+    rootCmd.InitDefaultHelpCmd()
+    rootCmd.SetHelpTemplate("{{if (ne .Long \"\")}}{{.Long}}\n{{end}}" + helpTemplate)
+    rootCmd.SetUsageTemplate(helpTemplate)
 
     // Modules init
     {

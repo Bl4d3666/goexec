@@ -9,17 +9,36 @@ import (
 )
 
 func dcomCmdInit() {
-  registerRpcFlags(dcomCmd)
+  cmdFlags[dcomCmd] = []*flagSet{
+    defaultAuthFlags,
+    defaultLogFlags,
+    defaultNetRpcFlags,
+  }
   dcomMmcCmdInit()
+
+  dcomCmd.PersistentFlags().AddFlagSet(defaultAuthFlags.Flags)
+  dcomCmd.PersistentFlags().AddFlagSet(defaultLogFlags.Flags)
+  dcomCmd.PersistentFlags().AddFlagSet(defaultNetRpcFlags.Flags)
   dcomCmd.AddCommand(dcomMmcCmd)
 }
 
 func dcomMmcCmdInit() {
-  dcomMmcCmd.Flags().StringVarP(&dcomMmc.WorkingDirectory, "directory", "d", `C:\`, "Working directory")
-  dcomMmcCmd.Flags().StringVar(&dcomMmc.WindowState, "window", "Minimized", "Window state")
+  dcomMmcExecFlags := newFlagSet("Execution")
 
-  registerProcessExecutionArgs(dcomMmcCmd)
-  registerExecutionOutputArgs(dcomMmcCmd)
+  registerExecutionFlags(dcomMmcExecFlags.Flags)
+  registerExecutionOutputFlags(dcomMmcExecFlags.Flags)
+
+  dcomMmcExecFlags.Flags.StringVar(&dcomMmc.WorkingDirectory, "directory", `C:\`, "Working `directory`")
+  dcomMmcExecFlags.Flags.StringVar(&dcomMmc.WindowState, "window", "Minimized", "Window state")
+
+  cmdFlags[dcomMmcCmd] = []*flagSet{
+    dcomMmcExecFlags,
+    defaultAuthFlags,
+    defaultLogFlags,
+    defaultNetRpcFlags,
+  }
+
+  dcomMmcCmd.Flags().AddFlagSet(dcomMmcExecFlags.Flags)
 }
 
 var (

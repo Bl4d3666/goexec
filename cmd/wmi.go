@@ -3,33 +3,44 @@ package cmd
 import (
   "context"
   "encoding/json"
-  "fmt"
   "github.com/FalconOpsLLC/goexec/pkg/goexec"
   wmiexec "github.com/FalconOpsLLC/goexec/pkg/goexec/wmi"
   "github.com/oiweiwei/go-msrpc/ssp/gssapi"
   "github.com/spf13/cobra"
+  "os"
 )
 
 func wmiCmdInit() {
-  registerRpcFlags(wmiCmd)
-
+  cmdFlags[wmiCmd] = []*flagSet{
+    defaultAuthFlags,
+    defaultLogFlags,
+    defaultNetRpcFlags,
+  }
   wmiCallCmdInit()
-  wmiCmd.AddCommand(wmiCallCmd)
-
   wmiProcCmdInit()
-  wmiCmd.AddCommand(wmiProcCmd)
-}
 
-func wmiCallArgs(_ *cobra.Command, _ []string) error {
-  return json.Unmarshal([]byte(wmiArguments), &wmiCall.Args)
+  wmiCmd.PersistentFlags().AddFlagSet(defaultAuthFlags.Flags)
+  wmiCmd.PersistentFlags().AddFlagSet(defaultLogFlags.Flags)
+  wmiCmd.PersistentFlags().AddFlagSet(defaultNetRpcFlags.Flags)
+  wmiCmd.AddCommand(wmiProcCmd, wmiCallCmd)
 }
 
 func wmiCallCmdInit() {
-  wmiCallCmd.Flags().StringVarP(&wmiCall.Resource, "namespace", "n", "//./root/cimv2", "WMI namespace")
-  wmiCallCmd.Flags().StringVarP(&wmiCall.Class, "class", "C", "", `WMI class to instantiate (i.e. "Win32_Process")`)
-  wmiCallCmd.Flags().StringVarP(&wmiCall.Method, "method", "m", "", `WMI Method to call (i.e. "Create")`)
-  wmiCallCmd.Flags().StringVarP(&wmiArguments, "args", "A", "{}", `WMI Method argument(s) in JSON dictionary format (i.e. {"Command":"calc.exe"})`)
+  wmiCallFlags := newFlagSet("WMI")
 
+  wmiCallFlags.Flags.StringVarP(&wmiCall.Resource, "namespace", "n", "//./root/cimv2", "WMI namespace")
+  wmiCallFlags.Flags.StringVarP(&wmiCall.Class, "class", "C", "", `WMI class to instantiate (i.e. "Win32_Process")`)
+  wmiCallFlags.Flags.StringVarP(&wmiCall.Method, "method", "m", "", `WMI Method to call (i.e. "Create")`)
+  wmiCallFlags.Flags.StringVarP(&wmiArguments, "args", "A", "{}", `WMI Method argument(s) in JSON dictionary format (i.e. {"Command":"calc.exe"})`)
+
+  wmiCallCmd.Flags().AddFlagSet(wmiCallFlags.Flags)
+
+  cmdFlags[wmiCallCmd] = []*flagSet{
+    wmiCallFlags,
+    defaultAuthFlags,
+    defaultLogFlags,
+    defaultNetRpcFlags,
+  }
   if err := wmiCallCmd.MarkFlagRequired("class"); err != nil {
     panic(err)
   }
@@ -39,11 +50,26 @@ func wmiCallCmdInit() {
 }
 
 func wmiProcCmdInit() {
-  wmiProcCmd.Flags().StringVarP(&wmiProc.Resource, "namespace", "n", "//./root/cimv2", "WMI namespace")
-  wmiProcCmd.Flags().StringVarP(&wmiProc.WorkingDirectory, "directory", "d", `C:\`, "Working directory")
+  wmiProcFlags := newFlagSet("WMI")
 
-  registerProcessExecutionArgs(wmiProcCmd)
-  registerExecutionOutputArgs(wmiProcCmd)
+  wmiProcFlags.Flags.StringVarP(&wmiProc.Resource, "namespace", "n", "//./root/cimv2", "WMI namespace")
+  wmiProcFlags.Flags.StringVarP(&wmiProc.WorkingDirectory, "directory", "d", `C:\`, "Working directory")
+
+  wmiProcExecFlags := newFlagSet("Execution")
+
+  registerExecutionFlags(wmiProcExecFlags.Flags)
+  registerExecutionOutputFlags(wmiProcExecFlags.Flags)
+
+  cmdFlags[wmiProcCmd] = []*flagSet{
+    wmiProcExecFlags,
+    wmiProcFlags,
+    defaultAuthFlags,
+    defaultLogFlags,
+    defaultNetRpcFlags,
+  }
+
+  wmiProcCmd.Flags().AddFlagSet(wmiProcFlags.Flags)
+  wmiProcCmd.Flags().AddFlagSet(wmiProcExecFlags.Flags)
 }
 
 var (
@@ -69,43 +95,24 @@ var (
 References:
   https://learn.microsoft.com/en-us/windows/win32/wmisdk/wmi-classes
 `,
-    Args: args(argsRpcClient("host"), wmiCallArgs),
+    Args: args(
+      argsRpcClient("cifs"),
+      func(cmd *cobra.Command, args []string) error {
+        return json.Unmarshal([]byte(wmiArguments), &wmiCall.Args)
+      }),
 
     Run: func(cmd *cobra.Command, args []string) {
-      var err error
+      wmiCall.Client = &rpcClient
+      wmiCall.Out = os.Stdout
 
-      ctx := gssapi.NewSecurityContext(context.Background())
-
-      ctx = log.With().
+      ctx := log.With().
         Str("module", "wmi").
         Str("method", "call").
-        Logger().
-        WithContext(ctx)
+        Logger().WithContext(gssapi.NewSecurityContext(context.Background()))
 
-      if err = rpcClient.Connect(ctx); err != nil {
-        log.Fatal().Err(err).Msg("Connection failed")
+      if err := goexec.ExecuteAuxiliaryMethod(ctx, &wmiCall); err != nil {
+        log.Fatal().Err(err).Msg("Operation failed")
       }
-
-      defer func() {
-        closeErr := rpcClient.Close(ctx)
-        if closeErr != nil {
-          log.Error().Err(closeErr).Msg("Failed to close connection")
-        }
-      }()
-
-      if err = wmiCall.Init(ctx); err != nil {
-        log.Error().Err(err).Msg("Module initialization failed")
-        returnCode = 2
-        return
-      }
-
-      out, err := wmiCall.Call(ctx)
-      if err != nil {
-        log.Error().Err(err).Msg("Call failed")
-        returnCode = 4
-        return
-      }
-      fmt.Println(string(out))
     },
   }
 
@@ -121,8 +128,8 @@ References:
   https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/create-method-in-class-win32-process
 `,
     Args: args(
+      argsRpcClient("cifs"),
       argsOutput("smb"),
-      argsRpcClient("host"),
     ),
 
     Run: func(cmd *cobra.Command, args []string) {

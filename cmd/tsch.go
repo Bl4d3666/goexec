@@ -12,36 +12,71 @@ import (
 )
 
 func tschCmdInit() {
-  registerRpcFlags(tschCmd)
-
+  cmdFlags[tschCmd] = []*flagSet{
+    defaultAuthFlags,
+    defaultLogFlags,
+    defaultNetRpcFlags,
+  }
   tschDemandCmdInit()
-  tschCmd.AddCommand(tschDemandCmd)
-
   tschCreateCmdInit()
-  tschCmd.AddCommand(tschCreateCmd)
+
+  tschCmd.PersistentFlags().AddFlagSet(defaultAuthFlags.Flags)
+  tschCmd.PersistentFlags().AddFlagSet(defaultLogFlags.Flags)
+  tschCmd.PersistentFlags().AddFlagSet(defaultNetRpcFlags.Flags)
+  tschCmd.AddCommand(tschDemandCmd, tschCreateCmd)
 }
 
 func tschDemandCmdInit() {
-  tschDemandCmd.Flags().StringVarP(&tschTask, "task", "t", "", "Name or path of the new task")
-  tschDemandCmd.Flags().Uint32Var(&tschDemand.SessionId, "session", 0, "Hijack existing session given the session ID")
-  tschDemandCmd.Flags().BoolVar(&tschDemand.NoDelete, "no-delete", false, "Don't delete task after execution")
-  tschDemandCmd.Flags().StringVar(&tschDemand.UserSid, "sid", "S-1-5-18", "User SID to impersonate")
+  tschDemandFlags := newFlagSet("Task Scheduler")
 
-  registerProcessExecutionArgs(tschDemandCmd)
-  registerExecutionOutputArgs(tschDemandCmd)
+  tschDemandFlags.Flags.StringVarP(&tschTask, "task", "t", "", "Name or path of the new task")
+  tschDemandFlags.Flags.Uint32Var(&tschDemand.SessionId, "session", 0, "Hijack existing session given the session ID")
+  tschDemandFlags.Flags.StringVar(&tschDemand.UserSid, "sid", "S-1-5-18", "User SID to impersonate")
+  tschDemandFlags.Flags.BoolVar(&tschDemand.NoDelete, "no-delete", false, "Don't delete task after execution")
+
+  tschDemandExecFlags := newFlagSet("Execution")
+
+  registerExecutionFlags(tschDemandExecFlags.Flags)
+  registerExecutionOutputFlags(tschDemandExecFlags.Flags)
+
+  cmdFlags[tschDemandCmd] = []*flagSet{
+    tschDemandFlags,
+    tschDemandExecFlags,
+    defaultAuthFlags,
+    defaultLogFlags,
+    defaultNetRpcFlags,
+  }
+
+  tschDemandCmd.Flags().AddFlagSet(tschDemandFlags.Flags)
+  tschDemandCmd.Flags().AddFlagSet(tschDemandExecFlags.Flags)
 }
 
 func tschCreateCmdInit() {
-  tschCreateCmd.Flags().StringVarP(&tschTask, "task", "t", "", "Name or path of the new task")
-  tschCreateCmd.Flags().DurationVar(&tschCreate.StopDelay, "delay-stop", 5*time.Second, "Delay between task execution and termination. This won't stop the spawned process")
-  tschCreateCmd.Flags().DurationVar(&tschCreate.StartDelay, "start-delay", 5*time.Second, "Delay between task registration and execution")
-  tschCreateCmd.Flags().DurationVar(&tschCreate.DeleteDelay, "delete-delay", 0*time.Second, "Delay between task termination and deletion")
-  tschCreateCmd.Flags().BoolVar(&tschCreate.NoDelete, "no-delete", false, "Don't delete task after execution")
-  tschCreateCmd.Flags().BoolVar(&tschCreate.CallDelete, "call-delete", false, "Directly call SchRpcDelete to delete task")
-  tschCreateCmd.Flags().StringVar(&tschCreate.UserSid, "sid", "S-1-5-18", "User SID to impersonate")
+  tschCreateFlags := newFlagSet("Task Scheduler")
 
-  registerProcessExecutionArgs(tschCreateCmd)
-  registerExecutionOutputArgs(tschCreateCmd)
+  tschCreateFlags.Flags.StringVarP(&tschTask, "task", "t", "", "Name or path of the new task")
+  tschCreateFlags.Flags.DurationVar(&tschCreate.StopDelay, "delay-stop", 5*time.Second, "Delay between task execution and termination. This won't stop the spawned process")
+  tschCreateFlags.Flags.DurationVar(&tschCreate.StartDelay, "start-delay", 5*time.Second, "Delay between task registration and execution")
+  tschCreateFlags.Flags.DurationVar(&tschCreate.DeleteDelay, "delete-delay", 0*time.Second, "Delay between task termination and deletion")
+  tschCreateFlags.Flags.BoolVar(&tschCreate.NoDelete, "no-delete", false, "Don't delete task after execution")
+  tschCreateFlags.Flags.BoolVar(&tschCreate.CallDelete, "call-delete", false, "Directly call SchRpcDelete to delete task")
+  tschCreateFlags.Flags.StringVar(&tschCreate.UserSid, "sid", "S-1-5-18", "User `SID` to impersonate")
+
+  tschCreateExecFlags := newFlagSet("Execution")
+
+  registerExecutionFlags(tschCreateExecFlags.Flags)
+  registerExecutionOutputFlags(tschCreateExecFlags.Flags)
+
+  cmdFlags[tschCreateCmd] = []*flagSet{
+    tschCreateFlags,
+    tschCreateExecFlags,
+    defaultAuthFlags,
+    defaultLogFlags,
+    defaultNetRpcFlags,
+  }
+
+  tschCreateCmd.Flags().AddFlagSet(tschCreateFlags.Flags)
+  tschCreateCmd.Flags().AddFlagSet(tschCreateExecFlags.Flags)
 }
 
 func argsTask(*cobra.Command, []string) error {
@@ -52,7 +87,7 @@ func argsTask(*cobra.Command, []string) error {
   case tschexec.ValidateTaskName(tschTask) == nil:
     tschTask = `\` + tschTask
   default:
-    return fmt.Errorf("invalid task name or path: %q", tschTask)
+    return fmt.Errorf("invalid task Label or path: %q", tschTask)
   }
   return nil
 }

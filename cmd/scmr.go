@@ -10,43 +10,90 @@ import (
 )
 
 func scmrCmdInit() {
-  registerRpcFlags(scmrCmd)
+  cmdFlags[scmrCmd] = []*flagSet{
+    defaultAuthFlags,
+    defaultLogFlags,
+    defaultNetRpcFlags,
+  }
   scmrCreateCmdInit()
-  scmrCmd.AddCommand(scmrCreateCmd)
   scmrChangeCmdInit()
-  scmrCmd.AddCommand(scmrChangeCmd)
   scmrDeleteCmdInit()
-  scmrCmd.AddCommand(scmrDeleteCmd)
+
+  scmrCmd.PersistentFlags().AddFlagSet(defaultAuthFlags.Flags)
+  scmrCmd.PersistentFlags().AddFlagSet(defaultLogFlags.Flags)
+  scmrCmd.PersistentFlags().AddFlagSet(defaultNetRpcFlags.Flags)
+  scmrCmd.AddCommand(scmrCreateCmd, scmrChangeCmd, scmrDeleteCmd)
 }
 
 func scmrCreateCmdInit() {
-  scmrCreateCmd.Flags().StringVarP(&scmrCreate.DisplayName, "display-name", "n", "", "Display name of service to create")
-  scmrCreateCmd.Flags().StringVarP(&scmrCreate.ServiceName, "service-name", "s", "", "Name of service to create")
-  scmrCreateCmd.Flags().BoolVar(&scmrCreate.NoDelete, "no-delete", false, "Don't delete service after execution")
-  scmrCreateCmd.Flags().BoolVar(&scmrCreate.NoStart, "no-start", false, "Don't start service")
+  scmrCreateFlags := newFlagSet("Service")
 
-  scmrCreateCmd.Flags().StringVarP(&exec.Input.ExecutablePath, "executable-path", "f", "", "Full path to a remote Windows executable")
-  scmrCreateCmd.Flags().StringVarP(&exec.Input.Arguments, "args", "a", "", "Arguments to pass to the executable")
+  scmrCreateFlags.Flags.StringVarP(&scmrCreate.DisplayName, "display-name", "n", "", "Display name of service to create")
+  scmrCreateFlags.Flags.StringVarP(&scmrCreate.ServiceName, "service", "s", "", "Name of service to create")
+  scmrCreateFlags.Flags.BoolVar(&scmrCreate.NoDelete, "no-delete", false, "Don't delete service after execution")
+  scmrCreateFlags.Flags.BoolVar(&scmrCreate.NoStart, "no-start", false, "Don't start service")
 
-  scmrCreateCmd.MarkFlagsMutuallyExclusive("no-delete", "no-start")
+  scmrCreateExecFlags := newFlagSet("Execution")
 
-  if err := scmrCreateCmd.MarkFlagRequired("executable-path"); err != nil {
-    panic(err)
+  // TODO: SCMR output
+  //registerExecutionOutputFlags(scmrCreateExecFlags.Flags)
+
+  scmrCreateExecFlags.Flags.StringVarP(&exec.Input.ExecutablePath, "executable-path", "f", "", "Full path to a remote Windows executable")
+  scmrCreateExecFlags.Flags.StringVarP(&exec.Input.Arguments, "args", "a", "", "Arguments to pass to the executable")
+
+  scmrCreateCmd.Flags().AddFlagSet(scmrCreateFlags.Flags)
+  scmrCreateCmd.Flags().AddFlagSet(scmrCreateExecFlags.Flags)
+
+  cmdFlags[scmrCreateCmd] = []*flagSet{
+    scmrCreateExecFlags,
+    scmrCreateFlags,
+    defaultAuthFlags,
+    defaultLogFlags,
+    defaultNetRpcFlags,
+  }
+
+  // Constraints
+  {
+    scmrCreateCmd.MarkFlagsMutuallyExclusive("no-delete", "no-start")
+    if err := scmrCreateCmd.MarkFlagRequired("executable-path"); err != nil {
+      panic(err)
+    }
   }
 }
 
 func scmrChangeCmdInit() {
-  scmrChangeCmd.Flags().BoolVar(&scmrChange.NoStart, "no-start", false, "Don't start service")
-  scmrChangeCmd.Flags().StringVarP(&scmrChange.ServiceName, "service-name", "s", "", "Name of service to modify")
+  scmrChangeFlags := newFlagSet("Service Control")
 
-  scmrChangeCmd.Flags().StringVarP(&exec.Input.ExecutablePath, "executable-path", "f", "", "Full path to remote Windows executable")
-  scmrChangeCmd.Flags().StringVarP(&exec.Input.Arguments, "args", "a", "", "Arguments to pass to executable")
+  scmrChangeFlags.Flags.StringVarP(&scmrChange.ServiceName, "service-name", "s", "", "Name of service to modify")
+  scmrChangeFlags.Flags.BoolVar(&scmrChange.NoStart, "no-start", false, "Don't start service")
 
-  if err := scmrChangeCmd.MarkFlagRequired("service-name"); err != nil {
-    panic(err)
+  scmrChangeExecFlags := newFlagSet("Execution")
+
+  scmrChangeExecFlags.Flags.StringVarP(&exec.Input.ExecutablePath, "executable-path", "f", "", "Full path to remote Windows executable")
+  scmrChangeExecFlags.Flags.StringVarP(&exec.Input.Arguments, "args", "a", "", "Arguments to pass to executable")
+
+  // TODO: SCMR output
+  //registerExecutionOutputFlags(scmrChangeExecFlags.Flags)
+
+  cmdFlags[scmrChangeCmd] = []*flagSet{
+    scmrChangeFlags,
+    scmrChangeExecFlags,
+    defaultAuthFlags,
+    defaultLogFlags,
+    defaultNetRpcFlags,
   }
-  if err := scmrCreateCmd.MarkFlagRequired("executable-path"); err != nil {
-    panic(err)
+
+  scmrChangeCmd.Flags().AddFlagSet(scmrChangeFlags.Flags)
+  scmrChangeCmd.Flags().AddFlagSet(scmrChangeExecFlags.Flags)
+
+  // Constraints
+  {
+    if err := scmrChangeCmd.MarkFlagRequired("service-name"); err != nil {
+      panic(err)
+    }
+    if err := scmrCreateCmd.MarkFlagRequired("executable-path"); err != nil {
+      panic(err)
+    }
   }
 }
 
@@ -94,7 +141,7 @@ References:
         WithContext(ctx)
 
       if scmrCreate.ServiceName == "" {
-        log.Warn().Msg("No service name was provided. Using a random string")
+        log.Warn().Msg("No service Label was provided. Using a random string")
         scmrCreate.ServiceName = util.RandomString()
       }
 
@@ -103,7 +150,7 @@ References:
       }
 
       if scmrCreate.DisplayName == "" {
-        log.Debug().Msg("No display name specified, using service name as display name")
+        log.Debug().Msg("No display Label specified, using service Label as display Label")
         scmrCreate.DisplayName = scmrCreate.ServiceName
       }
 
