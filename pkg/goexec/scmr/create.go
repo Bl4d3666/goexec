@@ -50,8 +50,8 @@ func (m *ScmrCreate) Execute(ctx context.Context, in *goexec.ExecutionInput) (er
     ServiceName:    m.ServiceName,
     DisplayName:    m.DisplayName,
     BinaryPathName: in.String(),
-    ServiceType:    windows.SERVICE_WIN32_OWN_PROCESS,
-    StartType:      windows.SERVICE_DEMAND_START,
+    ServiceType:    ServiceWin32OwnProcess,
+    StartType:      ServiceDemandStart,
     DesiredAccess:  ServiceAllAccess, // TODO: Replace
   })
 

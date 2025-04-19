@@ -86,11 +86,11 @@ func (m *ScmrChange) Execute(ctx context.Context, in *goexec.ExecutionInput) (er
 
   stopResponse, err := m.ctl.ControlService(ctx, &svcctl.ControlServiceRequest{
     Service: svc.handle,
-    Control: windows.SERVICE_CONTROL_STOP,
+    Control: ServiceControlStop,
   })
 
   if err != nil {
-    if stopResponse == nil || stopResponse.Return != windows.ERROR_SERVICE_NOT_ACTIVE {
+    if stopResponse == nil || stopResponse.Return != ErrorServiceNotActive {
 
       log.Error().Err(err).Msg("Failed to stop existing service")
       return fmt.Errorf("stop service: %w", err)
@@ -115,7 +115,7 @@ func (m *ScmrChange) Execute(ctx context.Context, in *goexec.ExecutionInput) (er
     BinaryPathName:   in.String(),
     DisplayName:      svc.originalConfig.DisplayName,
     ServiceType:      svc.originalConfig.ServiceType,
-    StartType:        windows.SERVICE_DEMAND_START,
+    StartType:        ServiceDemandStart,
     ErrorControl:     svc.originalConfig.ErrorControl,
     LoadOrderGroup:   svc.originalConfig.LoadOrderGroup,
     ServiceStartName: svc.originalConfig.ServiceStartName,

@@ -5,7 +5,6 @@ import (
   "errors"
   "fmt"
   "github.com/FalconOpsLLC/goexec/internal/util"
-  "github.com/FalconOpsLLC/goexec/internal/windows"
   "github.com/FalconOpsLLC/goexec/pkg/goexec/dce"
   "github.com/oiweiwei/go-msrpc/dcerpc"
   "github.com/oiweiwei/go-msrpc/midl/uuid"
@@ -18,6 +17,43 @@ const (
 
   DefaultEndpoint = "ncacn_np:[svcctl]"
   ScmrUuid        = "367ABB81-9844-35F1-AD32-98F038001003"
+
+  ErrorServiceRequestTimeout uint32 = 0x0000041d
+  ErrorServiceNotActive      uint32 = 0x00000426
+
+  ServiceDemandStart     uint32 = 0x00000003
+  ServiceWin32OwnProcess uint32 = 0x00000010
+
+  // https://learn.microsoft.com/en-us/windows/win32/services/service-security-and-access-rights
+
+  ServiceQueryConfig     uint32 = 0x00000001
+  ServiceChangeConfig    uint32 = 0x00000002
+  ServiceStart           uint32 = 0x00000010
+  ServiceStop            uint32 = 0x00000020
+  ServiceDelete          uint32 = 0x00010000 // special permission
+  ServiceControlStop     uint32 = 0x00000001
+  ScManagerCreateService uint32 = 0x00000002
+
+  /*
+        // Windows error codes
+        ERROR_FILE_NOT_FOUND          uint32 = 0x00000002
+        ERROR_SERVICE_DOES_NOT_EXIST  uint32 = 0x00000424
+
+     // Windows service/scm constants
+     SERVICE_BOOT_START   uint32 = 0x00000000
+     SERVICE_SYSTEM_START uint32 = 0x00000001
+     SERVICE_AUTO_START   uint32 = 0x00000002
+     SERVICE_DISABLED     uint32 = 0x00000004
+
+     // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-scmr/4e91ff36-ab5f-49ed-a43d-a308e72b0b3c
+     SERVICE_CONTINUE_PENDING uint32 = 0x00000005
+     SERVICE_PAUSE_PENDING    uint32 = 0x00000006
+     SERVICE_PAUSED           uint32 = 0x00000007
+     SERVICE_RUNNING          uint32 = 0x00000004
+     SERVICE_START_PENDING    uint32 = 0x00000002
+     SERVICE_STOP_PENDING     uint32 = 0x00000003
+     SERVICE_STOPPED          uint32 = 0x00000001
+  */
 )
 
 type Scmr struct {
@@ -118,7 +154,7 @@ func (m *Scmr) startService(ctx context.Context, svc *service) error {
       svc.handle = nil
       return nil
 
-    } else if sr.Return == windows.ERROR_SERVICE_REQUEST_TIMEOUT {
+    } else if sr.Return == ErrorServiceRequestTimeout {
       log.Info().Msg("Received request timeout. Execution was likely successful")
       return nil
     }
