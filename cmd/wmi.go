@@ -50,25 +50,20 @@ func wmiCallCmdInit() {
 }
 
 func wmiProcCmdInit() {
-  wmiProcFlags := newFlagSet("WMI")
-
-  wmiProcFlags.Flags.StringVarP(&wmiProc.Resource, "namespace", "n", "//./root/cimv2", "WMI namespace")
-  wmiProcFlags.Flags.StringVarP(&wmiProc.WorkingDirectory, "directory", "d", `C:\`, "Working directory")
-
   wmiProcExecFlags := newFlagSet("Execution")
 
   registerExecutionFlags(wmiProcExecFlags.Flags)
   registerExecutionOutputFlags(wmiProcExecFlags.Flags)
 
+  wmiProcExecFlags.Flags.StringVarP(&wmiProc.WorkingDirectory, "directory", "d", `C:\`, "Working directory")
+
   cmdFlags[wmiProcCmd] = []*flagSet{
     wmiProcExecFlags,
-    wmiProcFlags,
     defaultAuthFlags,
     defaultLogFlags,
     defaultNetRpcFlags,
   }
 
-  wmiProcCmd.Flags().AddFlagSet(wmiProcFlags.Flags)
   wmiProcCmd.Flags().AddFlagSet(wmiProcExecFlags.Flags)
 }
 
@@ -79,21 +74,22 @@ var (
   wmiArguments string
 
   wmiCmd = &cobra.Command{
-    Use:     "wmi",
-    Short:   "Execute with Windows Management Instrumentation (MS-WMI)",
+    Use:   "wmi",
+    Short: "Execute with Windows Management Instrumentation (MS-WMI)",
+    Long: `Description:
+  The wmi module uses remote Windows Management Instrumentation (WMI) to
+  perform various operations including process creation.
+`,
     GroupID: "module",
     Args:    cobra.NoArgs,
   }
 
   wmiCallCmd = &cobra.Command{
-    Use:   "call",
+    Use:   "call [target]",
     Short: "Execute specified WMI method",
     Long: `Description:
   The call method creates an instance of the specified WMI class (-c),
   then calls the provided method (-m) with the provided arguments (-A).
-
-References:
-  https://learn.microsoft.com/en-us/windows/win32/wmisdk/wmi-classes
 `,
     Args: args(
       argsRpcClient("cifs"),
@@ -117,15 +113,12 @@ References:
   }
 
   wmiProcCmd = &cobra.Command{
-    Use:   "proc",
+    Use:   "proc [target]",
     Short: "Start a Windows process",
     Long: `Description:
   The proc method creates an instance of the Win32_Process WMI class, then
   calls the Win32_Process.Create method with the provided command (-c),
   and optional working directory (-d).
-
-References:
-  https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/create-method-in-class-win32-process
 `,
     Args: args(
       argsRpcClient("cifs"),
@@ -135,6 +128,7 @@ References:
     Run: func(cmd *cobra.Command, args []string) {
       wmiProc.Client = &rpcClient
       wmiProc.IO = exec
+      wmiProc.Resource = "//./root/cimv2"
 
       ctx := log.With().
         Str("module", "wmi").
