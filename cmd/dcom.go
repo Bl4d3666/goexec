@@ -57,12 +57,6 @@ var (
     Long: `Description:
   The mmc method uses the exposed MMC20.Application object to call Document.ActiveView.ShellExec,
   and ultimately spawn a process on the remote host.
-
-References:
-  - https://www.scorpiones.io/articles/lateral-movement-using-dcom-objects
-  - https://enigma0x3.net/2017/01/05/lateral-movement-using-the-mmc20-application-com-object/
-  - https://github.com/fortra/impacket/blob/master/examples/dcomexec.py
-  - https://learn.microsoft.com/en-us/previous-versions/windows/desktop/mmc/view-executeshellcommand
 `,
     Args: args(
       argsRpcClient("host"),
@@ -72,7 +66,10 @@ References:
       dcomMmc.Dcom.Client = &rpcClient
       dcomMmc.IO = exec
 
-      ctx := log.WithContext(gssapi.NewSecurityContext(context.TODO()))
+      ctx := log.With().
+        Str("module", "dcom").
+        Str("method", "mmc").
+        Logger().WithContext(gssapi.NewSecurityContext(context.Background()))
 
       if err := goexec.ExecuteCleanMethod(ctx, &dcomMmc, &exec); err != nil {
         log.Fatal().Err(err).Msg("Operation failed")
