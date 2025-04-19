@@ -13,7 +13,10 @@ ENV CGO_ENABLED=0
 RUN go mod download
 RUN go build -ldflags="-s -w" -o /go/bin/goexec
 
-FROM alpine:3 AS goexec
+# [For debugging]
+#FROM alpine:3 AS goexec
+
+FROM scratch AS goexec
 COPY --from="goexec-builder" /go/bin/goexec /usr/local/bin/goexec
 
 WORKDIR /io
