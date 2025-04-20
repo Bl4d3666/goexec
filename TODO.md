@@ -8,7 +8,6 @@
 - [X] Session hijacking
 - [X] Generate random name/path
 - [X] Output
-- [ ] Add more trigger types
 - [ ] Add command to tsch - update task if it already exists. See https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/849c131a-64e4-46ef-b015-9d4c599c5167 (`flags` argument)
 
 ### SCMR
@@ -45,6 +44,14 @@
 - [ ] `--shell` option
 - [ ] Add Go tests
 - [ ] ability to specify multiple targets
+
+### TSCH
+
+- [ ] Add more trigger types
+
+### SCMR
+
+- [ ] `psexec` with PsExeSVC.exe AND NOT Impacket's RemCom build - https://sensepost.com/blog/2025/psexecing-the-right-way-and-why-zero-trust-is-mandatory/
 
 ### DCOM
 

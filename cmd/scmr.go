@@ -177,7 +177,7 @@ References:
 
   scmrChangeCmd = &cobra.Command{
     Use:   "change [target]",
-    Short: "Change an existing Windows service to gain execution",
+    Short: "Change an existing Windows service to spawn an arbitrary process",
     Args:  argsRpcClient("cifs"),
 
     Run: func(cmd *cobra.Command, args []string) {

@@ -24,7 +24,7 @@ type TschDemand struct {
   SessionId uint32
 }
 
-func (m *TschDemand) Execute(ctx context.Context, in *goexec.ExecutionIO) (err error) {
+func (m *TschDemand) Execute(ctx context.Context, execIO *goexec.ExecutionIO) (err error) {
 
   log := zerolog.Ctx(ctx).With().
     Str("module", ModuleName).
@@ -39,7 +39,7 @@ func (m *TschDemand) Execute(ctx context.Context, in *goexec.ExecutionIO) (err e
       Hidden:             !m.NotHidden,
       triggers:           taskTriggers{},
     },
-    in,
+    execIO,
   )
   if err != nil {
     return err

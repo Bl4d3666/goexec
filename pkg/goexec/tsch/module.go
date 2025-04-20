@@ -63,7 +63,7 @@ func (m *Tsch) registerTask(ctx context.Context, opts *registerOptions, in *goex
 
   ctx = log.WithContext(ctx)
 
-  principalId := "1" // This value can be anything
+  principalId := "LocalSystem"
 
   settings := taskSettings{
     MultipleInstancesPolicy: "IgnoreNew",
@@ -101,7 +101,7 @@ func (m *Tsch) registerTask(ctx context.Context, opts *registerOptions, in *goex
     },
   }
 
-  def := task{
+  def := simpleTask{
     TaskVersion:   TaskXmlVersion,
     TaskNamespace: TaskXmlNamespace,
     Triggers:      opts.triggers,

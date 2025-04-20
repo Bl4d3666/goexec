@@ -19,11 +19,12 @@ func tschCmdInit() {
   }
   tschDemandCmdInit()
   tschCreateCmdInit()
+  tschChangeCmdInit()
 
   tschCmd.PersistentFlags().AddFlagSet(defaultAuthFlags.Flags)
   tschCmd.PersistentFlags().AddFlagSet(defaultLogFlags.Flags)
   tschCmd.PersistentFlags().AddFlagSet(defaultNetRpcFlags.Flags)
-  tschCmd.AddCommand(tschDemandCmd, tschCreateCmd)
+  tschCmd.AddCommand(tschDemandCmd, tschCreateCmd, tschChangeCmd)
 }
 
 func tschDemandCmdInit() {
@@ -49,6 +50,7 @@ func tschDemandCmdInit() {
 
   tschDemandCmd.Flags().AddFlagSet(tschDemandFlags.Flags)
   tschDemandCmd.Flags().AddFlagSet(tschDemandExecFlags.Flags)
+  tschDemandCmd.MarkFlagsOneRequired("executable", "command")
 }
 
 func tschCreateCmdInit() {
@@ -77,6 +79,39 @@ func tschCreateCmdInit() {
 
   tschCreateCmd.Flags().AddFlagSet(tschCreateFlags.Flags)
   tschCreateCmd.Flags().AddFlagSet(tschCreateExecFlags.Flags)
+  tschCreateCmd.MarkFlagsOneRequired("executable", "command")
+}
+
+func tschChangeCmdInit() {
+  tschChangeFlags := newFlagSet("Task Scheduler")
+
+  tschChangeFlags.Flags.StringVarP(&tschTask, "task", "t", "", "Path to existing task")
+  tschChangeFlags.Flags.BoolVar(&tschChange.NoStart, "no-start", false, "Don't start the task")
+  tschChangeFlags.Flags.BoolVar(&tschChange.NoRevert, "no-revert", false, "Don't restore the original task definition")
+
+  tschChangeExecFlags := newFlagSet("Execution")
+
+  registerExecutionFlags(tschChangeExecFlags.Flags)
+  registerExecutionOutputFlags(tschChangeExecFlags.Flags)
+
+  cmdFlags[tschChangeCmd] = []*flagSet{
+    tschChangeFlags,
+    tschChangeExecFlags,
+    defaultAuthFlags,
+    defaultLogFlags,
+    defaultNetRpcFlags,
+  }
+
+  tschChangeCmd.Flags().AddFlagSet(tschChangeFlags.Flags)
+  tschChangeCmd.Flags().AddFlagSet(tschChangeExecFlags.Flags)
+
+  // Constraints
+  {
+    if err := tschChangeCmd.MarkFlagRequired("task"); err != nil {
+      panic(err)
+    }
+    tschChangeCmd.MarkFlagsOneRequired("executable", "command")
+  }
 }
 
 func argsTask(*cobra.Command, []string) error {
@@ -95,6 +130,7 @@ func argsTask(*cobra.Command, []string) error {
 var (
   tschDemand tschexec.TschDemand
   tschCreate tschexec.TschCreate
+  tschChange tschexec.TschChange
 
   tschTask string
 
@@ -170,6 +206,31 @@ References:
         Logger().WithContext(gssapi.NewSecurityContext(context.TODO()))
 
       if err := goexec.ExecuteCleanMethod(ctx, &tschCreate, &exec); err != nil {
+        log.Fatal().Err(err).Msg("Operation failed")
+      }
+    },
+  }
+  tschChangeCmd = &cobra.Command{
+    Use:   "change [target]",
+    Short: "Modify an existing task to spawn an arbitrary process",
+    Long:  `Description:`, // TODO
+    Args: args(
+      argsRpcClient("cifs"),
+      argsOutput("smb"),
+      argsTask,
+    ),
+
+    Run: func(*cobra.Command, []string) {
+      tschChange.Tsch.Client = &rpcClient
+      tschChange.IO = exec
+      tschChange.TaskPath = tschTask
+
+      ctx := log.With().
+        Str("module", "tsch").
+        Str("method", "change").
+        Logger().WithContext(gssapi.NewSecurityContext(context.TODO()))
+
+      if err := goexec.ExecuteCleanMethod(ctx, &tschChange, &exec); err != nil {
         log.Fatal().Err(err).Msg("Operation failed")
       }
     },

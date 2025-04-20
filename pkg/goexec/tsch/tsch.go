@@ -82,7 +82,7 @@ type taskPrincipal struct {
   RunLevel string   `xml:"RunLevel"`
 }
 
-type task struct {
+type simpleTask struct {
   XMLName       xml.Name       `xml:"Task"`
   TaskVersion   string         `xml:"version,attr"`
   TaskNamespace string         `xml:"xmlns,attr"`
@@ -110,7 +110,7 @@ func newSettings(terminate, onDemand, startWhenAvailable bool) *taskSettings {
 }
 
 // newTask creates a task with any static values filled
-func newTask(se *taskSettings, pr []taskPrincipal, tr taskTriggers, cmd, args string) *task {
+func newTask(se *taskSettings, pr []taskPrincipal, tr taskTriggers, cmd, args string) *simpleTask {
   if se == nil {
     se = newSettings(true, true, false)
   }
@@ -123,7 +123,7 @@ func newTask(se *taskSettings, pr []taskPrincipal, tr taskTriggers, cmd, args st
       },
     }
   }
-  return &task{
+  return &simpleTask{
     TaskVersion:   "1.2",
     TaskNamespace: "http://schemas.microsoft.com/windows/2004/02/mit/task",
     Triggers:      tr,
