@@ -75,6 +75,7 @@ func scmrChangeCmdInit() {
 
   // TODO: SCMR output
   //registerExecutionOutputFlags(scmrChangeExecFlags.Flags)
+  //registerStageFlags(scmrChangeExecFlags.Flags)
 
   cmdFlags[scmrChangeCmd] = []*flagSet{
     scmrChangeFlags,
@@ -186,7 +187,7 @@ References:
 
       ctx := log.With().
         Str("module", "scmr").
-        Str("method", "create").
+        Str("method", "change").
         Logger().WithContext(gssapi.NewSecurityContext(context.Background()))
 
       if err := goexec.ExecuteCleanMethod(ctx, &scmrChange, &exec); err != nil {

@@ -2,11 +2,11 @@ package cmd
 
 import (
   "fmt"
-  "github.com/FalconOpsLLC/goexec/internal/util"
   "github.com/FalconOpsLLC/goexec/pkg/goexec"
   "github.com/FalconOpsLLC/goexec/pkg/goexec/dce"
   "github.com/FalconOpsLLC/goexec/pkg/goexec/smb"
   "github.com/RedTeamPentesting/adauth"
+  "github.com/google/uuid"
   "github.com/oiweiwei/go-msrpc/ssp"
   "github.com/oiweiwei/go-msrpc/ssp/gssapi"
   "github.com/rs/zerolog"
@@ -55,10 +55,13 @@ var (
 
   defaultAuthFlags, defaultLogFlags, defaultNetRpcFlags *flagSet
 
-  returnCode   int
-  outputMethod string
-  outputPath   string
-  proxy        string
+  returnCode int
+
+  // === IO ===
+  stageFilePath string
+  outputMethod  string
+  outputPath    string
+  // ==========
 
   // === Logging ===
   logJson   bool           // Log output in JSON lines
@@ -70,8 +73,11 @@ var (
   log       zerolog.Logger
   // ===============
 
+  // === Network ===
+  proxy     string
   rpcClient dce.Client
   smbClient smb.Client
+  // ===============
 
   exec = goexec.ExecutionIO{
     Input:  new(goexec.ExecutionInput),
@@ -86,15 +92,15 @@ var (
     Use:   "goexec",
     Short: `goexec - Windows remote execution multitool`,
     Long: `
- ___ ___ ___ _ _ ___ ___
-| . | . | -_|_'_| -_|  _|
-|_  |___|___|_,_|___|___|
-|___|
+  ___ ___ ___ _ _ ___ ___
+ | . | . | -_|_'_| -_|  _|
+ |_  |___|___|_,_|___|___|
+ |___|
 
 Authors: FalconOps LLC (@FalconOpsLLC),
          Bryan McNulty (@bryanmcnulty)
 
-> Goexec is designed to facilitate remote execution on Windows systems,
+> Goexec is designed to achieve remote execution on Windows systems,
   while providing an extremely flexible CLI and a strong focus on OPSEC.
 `,
 
@@ -130,11 +136,12 @@ Authors: FalconOps LLC (@FalconOpsLLC),
       if outputPath != "" {
         if outputMethod == "smb" {
           if exec.Output.RemotePath == "" {
-            exec.Output.RemotePath = util.RandomWindowsTempFile()
+            exec.Output.RemotePath = `C:\Windows\Temp\` + uuid.NewString()
           }
           exec.Output.Provider = &smb.OutputFileFetcher{
             Client:           &smbClient,
-            Share:            `C$`,
+            Share:            `ADMIN$`, // TODO: dynamic
+            SharePath:        `C:\Windows`,
             File:             exec.Output.RemotePath,
             DeleteOutputFile: !exec.Output.NoDelete,
           }
@@ -145,6 +152,9 @@ Authors: FalconOps LLC (@FalconOpsLLC),
 
     PersistentPostRun: func(cmd *cobra.Command, args []string) {
       if err := logFile.Close(); err != nil {
+        // ...
+      }
+      if err := exec.Input.StageFile.Close(); err != nil {
         // ...
       }
     },

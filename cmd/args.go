@@ -29,8 +29,13 @@ func registerNetworkFlags(fs *pflag.FlagSet) {
   //cmd.MarkFlagsMutuallyExclusive("no-epm", "epm-filter")
 }
 
+func registerStageFlags(fs *pflag.FlagSet) {
+  fs.StringVarP(&stageFilePath, "stage", "E", "", "File to stage and execute")
+  //fs.StringVarP(&stageArgs ...)
+}
+
 func registerExecutionFlags(fs *pflag.FlagSet) {
-  fs.StringVarP(&exec.Input.Executable, "executable", "e", "", "Windows executable to invoke")
+  fs.StringVarP(&exec.Input.Executable, "exec", "e", "", "Remote Windows executable to invoke")
   fs.StringVarP(&exec.Input.Arguments, "args", "a", "", "Process command line arguments")
   fs.StringVarP(&exec.Input.Command, "command", "c", "", "Windows process command line (executable & arguments)")
 

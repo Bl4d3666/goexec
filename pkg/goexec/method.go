@@ -102,15 +102,13 @@ func ExecuteCleanAuxiliaryMethod(ctx context.Context, module CleanAuxiliaryMetho
 func ExecuteCleanMethod(ctx context.Context, module CleanExecutionMethod, execIO *ExecutionIO) (err error) {
   log := zerolog.Ctx(ctx)
 
-  defer func() {
-    if err = module.Clean(ctx); err != nil {
-      log.Error().Err(err).Msg("Module cleanup failed")
-      err = nil
-    }
-  }()
-
   if err = ExecuteMethod(ctx, module, execIO); err != nil {
     return
+  }
+
+  if err = module.Clean(ctx); err != nil {
+    log.Error().Err(err).Msg("Module cleanup failed")
+    err = nil
   }
 
   if execIO.Output != nil && execIO.Output.Provider != nil {

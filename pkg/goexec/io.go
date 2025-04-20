@@ -27,7 +27,7 @@ type ExecutionOutput struct {
 }
 
 type ExecutionInput struct {
-  FilePath       string
+  StageFile      io.ReadCloser
   Executable     string
   ExecutablePath string
   Arguments      string
@@ -88,4 +88,11 @@ func (i *ExecutionInput) CommandLine() (cmd []string) {
 
 func (i *ExecutionInput) String() string {
   return strings.Join(i.CommandLine(), " ")
+}
+
+func (i *ExecutionInput) Reader() (reader io.Reader) {
+  if i.StageFile != nil {
+    return i.StageFile
+  }
+  return strings.NewReader(i.String())
 }
