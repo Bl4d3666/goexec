@@ -21,6 +21,7 @@ const (
 
 type Dcom struct {
   goexec.Cleaner
+  goexec.Executor
 
   Client  *dce.Client
   ClassID string
@@ -31,7 +32,7 @@ type Dcom struct {
 func (m *Dcom) Connect(ctx context.Context) (err error) {
 
   if err = m.Client.Connect(ctx); err == nil {
-    m.AddCleaner(m.Client.Close)
+    m.AddCleaners(m.Client.Close)
   }
   return
 }
@@ -113,7 +114,17 @@ func (m *Dcom) Init(ctx context.Context) (err error) {
     return fmt.Errorf("remote create instance response: PropertiesOutInfo is nil")
   }
 
-  opts = append(opts, si.RemoteReply.OXIDBindings.EndpointsByProtocol("ncacn_ip_tcp")...)
+  // Ensure that the string bindings don't contain the target hostname
+  for _, bind := range si.RemoteReply.OXIDBindings.GetStringBindings() {
+    stringBinding, err := dcerpc.ParseStringBinding("ncacn_ip_tcp:" + bind.NetworkAddr) // TODO: try bind.String()
+
+    if err != nil {
+      log.Debug().Err(err).Msg("Failed to parse string binding")
+      continue
+    }
+    stringBinding.NetworkAddress = ""
+    opts = append(opts, dcerpc.WithEndpoint(stringBinding.String()))
+  }
 
   err = m.Client.Reconnect(ctx, opts...)
   if err != nil {

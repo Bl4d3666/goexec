@@ -2,10 +2,7 @@ package scmrexec
 
 import (
   "context"
-  "fmt"
   "github.com/FalconOpsLLC/goexec/pkg/goexec"
-  "github.com/oiweiwei/go-msrpc/msrpc/scmr/svcctl/v2"
-  "github.com/rs/zerolog"
 )
 
 const (
@@ -16,31 +13,18 @@ type ScmrDelete struct {
   Scmr
   goexec.Cleaner
 
+  IO goexec.ExecutionIO
+
   ServiceName string
 }
 
-func (m *ScmrDelete) Clean(ctx context.Context) (err error) {
-
-  log := zerolog.Ctx(ctx).With().
-    Str("module", ModuleName).
-    Str("method", MethodDelete).
-    Str("service", m.ServiceName).
-    Logger()
+func (m *ScmrDelete) Call(ctx context.Context) (err error) {
 
   svc, err := m.openService(ctx, m.ServiceName)
   if err != nil {
     return err
   }
-  deleteResponse, err := m.ctl.DeleteService(ctx, &svcctl.DeleteServiceRequest{
-    Service: svc.handle,
-  })
-  if err != nil {
-    return fmt.Errorf("delete service: %w", err)
-  }
-  if deleteResponse.Return != 0 {
-    return fmt.Errorf("delete service returned non-zero exit code: %02x", deleteResponse.Return)
-  }
+  defer m.AddCleaners(func(ctxInner context.Context) error { return m.closeService(ctx, svc) })
 
-  log.Info().Msg("Deleted service")
-  return
+  return m.deleteService(ctx, svc)
 }

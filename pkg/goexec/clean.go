@@ -5,16 +5,16 @@ import (
   "github.com/rs/zerolog"
 )
 
-type CleanProvider interface {
-  Clean(ctx context.Context) (err error)
+type Clean interface {
+  Clean(ctx context.Context) error
 }
 
 type Cleaner struct {
   workers []func(ctx context.Context) error
 }
 
-func (c *Cleaner) AddCleaner(worker func(ctx context.Context) error) {
-  c.workers = append(c.workers, worker)
+func (c *Cleaner) AddCleaners(workers ...func(ctx context.Context) error) {
+  c.workers = append(c.workers, workers...)
 }
 
 func (c *Cleaner) Clean(ctx context.Context) (err error) {

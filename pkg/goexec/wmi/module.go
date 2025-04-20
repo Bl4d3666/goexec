@@ -33,7 +33,7 @@ type Wmi struct {
 func (m *Wmi) Connect(ctx context.Context) (err error) {
 
   if err = m.Client.Connect(ctx); err == nil {
-    m.AddCleaner(m.Client.Close)
+    m.AddCleaners(m.Client.Close)
   }
   return
 }
@@ -43,7 +43,7 @@ func (m *Wmi) Init(ctx context.Context) (err error) {
   log := zerolog.Ctx(ctx).With().
     Str("module", ModuleName).Logger()
 
-  if m.Client.Dce() == nil {
+  if m.Client == nil || m.Client.Dce() == nil {
     return errors.New("DCE connection not initialized")
   }
 

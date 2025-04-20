@@ -11,10 +11,6 @@ type Method interface {
   Init(ctx context.Context) error
 }
 
-type Clean interface {
-  Clean(ctx context.Context) error
-}
-
 type CleanMethod interface {
   Method
   Clean
@@ -98,7 +94,6 @@ func ExecuteCleanAuxiliaryMethod(ctx context.Context, module CleanAuxiliaryMetho
   }()
 
   if err = ExecuteAuxiliaryMethod(ctx, module); err != nil {
-    log.Error().Err(err).Msg("Auxiliary method failed")
     return fmt.Errorf("execute auxiliary method: %w", err)
   }
   return

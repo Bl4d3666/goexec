@@ -18,6 +18,8 @@ type ScmrCreate struct {
   goexec.Cleaner
   goexec.Executor
 
+  IO goexec.ExecutionIO
+
   NoDelete    bool
   NoStart     bool
   ServiceName string
@@ -33,14 +35,11 @@ func (m *ScmrCreate) ensure() {
   }
 }
 
-func (m *ScmrCreate) Execute(ctx context.Context, in *goexec.ExecutionInput) (err error) {
+func (m *ScmrCreate) Execute(ctx context.Context, in *goexec.ExecutionIO) (err error) {
   m.ensure()
 
   log := zerolog.Ctx(ctx).With().
-    Str("module", ModuleName).
-    Str("method", MethodCreate).
-    Str("service", m.ServiceName).
-    Logger()
+    Str("service", m.ServiceName).Logger()
 
   svc := &service{name: m.ServiceName}
 
@@ -65,7 +64,7 @@ func (m *ScmrCreate) Execute(ctx context.Context, in *goexec.ExecutionInput) (er
   }
 
   if !m.NoDelete {
-    m.AddCleaner(func(ctxInner context.Context) error {
+    m.AddCleaners(func(ctxInner context.Context) error {
 
       r, errInner := m.ctl.DeleteService(ctxInner, &svcctl.DeleteServiceRequest{
         Service: svc.handle,
@@ -82,7 +81,7 @@ func (m *ScmrCreate) Execute(ctx context.Context, in *goexec.ExecutionInput) (er
     })
   }
 
-  m.AddCleaner(func(ctxInner context.Context) error {
+  m.AddCleaners(func(ctxInner context.Context) error {
 
     r, errInner := m.ctl.CloseService(ctxInner, &svcctl.CloseServiceRequest{
       ServiceObject: svc.handle,
@@ -104,8 +103,10 @@ func (m *ScmrCreate) Execute(ctx context.Context, in *goexec.ExecutionInput) (er
   if !m.NoStart {
 
     err = m.startService(ctx, svc)
+
     if err != nil {
       log.Error().Err(err).Msg("Failed to start service")
+      return fmt.Errorf("start service: %w", err)
     }
   }
   if svc.handle == nil {
@@ -113,9 +114,10 @@ func (m *ScmrCreate) Execute(ctx context.Context, in *goexec.ExecutionInput) (er
     if err = m.Reconnect(ctx); err != nil {
       return err
     }
-
     svc, err = m.openService(ctx, svc.name)
+
     if err != nil {
+      log.Error().Err(err).Msg("Failed to reopen service handle")
       return fmt.Errorf("reopen service: %w", err)
     }
   }

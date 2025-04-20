@@ -17,15 +17,15 @@ type ScmrChange struct {
   goexec.Cleaner
   goexec.Executor
 
+  IO goexec.ExecutionIO
+
   NoStart     bool
   ServiceName string
 }
 
-func (m *ScmrChange) Execute(ctx context.Context, in *goexec.ExecutionInput) (err error) {
+func (m *ScmrChange) Execute(ctx context.Context, in *goexec.ExecutionIO) (err error) {
 
   log := zerolog.Ctx(ctx).With().
-    Str("module", ModuleName).
-    Str("method", MethodChange).
     Str("service", m.ServiceName).
     Logger()
 
@@ -49,7 +49,7 @@ func (m *ScmrChange) Execute(ctx context.Context, in *goexec.ExecutionInput) (er
   svc.handle = openResponse.Service
   log.Info().Msg("Opened service handle")
 
-  defer m.AddCleaner(func(ctxInner context.Context) error {
+  defer m.AddCleaners(func(ctxInner context.Context) error {
 
     r, errInner := m.ctl.CloseService(ctxInner, &svcctl.CloseServiceRequest{
       ServiceObject: svc.handle,
@@ -65,7 +65,7 @@ func (m *ScmrChange) Execute(ctx context.Context, in *goexec.ExecutionInput) (er
     return nil
   })
 
-  // Note original service configuration
+  // Note the original service configuration
   queryResponse, err := m.ctl.QueryServiceConfigW(ctx, &svcctl.QueryServiceConfigWRequest{
     Service:      svc.handle,
     BufferLength: 8 * 1024,
@@ -99,7 +99,7 @@ func (m *ScmrChange) Execute(ctx context.Context, in *goexec.ExecutionInput) (er
 
     // TODO: restore state
     /*
-       defer m.AddCleaner(func(ctxInner context.Context) error {
+       defer m.AddCleaners(func(ctxInner context.Context) error {
          // ...
          return nil
        })

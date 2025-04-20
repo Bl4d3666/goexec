@@ -45,7 +45,7 @@ func (o *OutputFileFetcher) GetOutput(ctx context.Context, writer io.Writer) (er
   if err != nil {
     return
   }
-  defer o.AddCleaner(o.Client.Close)
+  defer o.AddCleaners(o.Client.Close)
 
   err = o.Client.Mount(ctx, o.Share)
   if err != nil {
@@ -69,10 +69,10 @@ func (o *OutputFileFetcher) GetOutput(ctx context.Context, writer io.Writer) (er
     return
   }
 
-  o.AddCleaner(func(_ context.Context) error { return reader.Close() })
+  o.AddCleaners(func(_ context.Context) error { return reader.Close() })
 
   if o.DeleteOutputFile {
-    o.AddCleaner(func(_ context.Context) error {
+    o.AddCleaners(func(_ context.Context) error {
       return o.Client.mount.Remove(o.relativePath)
     })
   }

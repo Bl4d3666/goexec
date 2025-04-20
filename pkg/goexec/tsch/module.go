@@ -39,7 +39,7 @@ type registerOptions struct {
 func (m *Tsch) Connect(ctx context.Context) (err error) {
 
   if err = m.Client.Connect(ctx); err == nil {
-    m.AddCleaner(m.Client.Close)
+    m.AddCleaners(m.Client.Close)
   }
   return
 }

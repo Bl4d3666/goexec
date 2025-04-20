@@ -5,6 +5,7 @@ import (
   "errors"
   "fmt"
   "github.com/FalconOpsLLC/goexec/internal/util"
+  "github.com/FalconOpsLLC/goexec/pkg/goexec"
   "github.com/FalconOpsLLC/goexec/pkg/goexec/dce"
   "github.com/oiweiwei/go-msrpc/dcerpc"
   "github.com/oiweiwei/go-msrpc/midl/uuid"
@@ -12,70 +13,41 @@ import (
   "github.com/rs/zerolog"
 )
 
-const (
-  ModuleName = "SCMR"
-
-  DefaultEndpoint = "ncacn_np:[svcctl]"
-  ScmrUuid        = "367ABB81-9844-35F1-AD32-98F038001003"
-
-  ErrorServiceRequestTimeout uint32 = 0x0000041d
-  ErrorServiceNotActive      uint32 = 0x00000426
-
-  ServiceDemandStart     uint32 = 0x00000003
-  ServiceWin32OwnProcess uint32 = 0x00000010
-
-  // https://learn.microsoft.com/en-us/windows/win32/services/service-security-and-access-rights
-
-  ServiceQueryConfig     uint32 = 0x00000001
-  ServiceChangeConfig    uint32 = 0x00000002
-  ServiceStart           uint32 = 0x00000010
-  ServiceStop            uint32 = 0x00000020
-  ServiceDelete          uint32 = 0x00010000 // special permission
-  ServiceControlStop     uint32 = 0x00000001
-  ScManagerCreateService uint32 = 0x00000002
-
-  /*
-        // Windows error codes
-        ERROR_FILE_NOT_FOUND          uint32 = 0x00000002
-        ERROR_SERVICE_DOES_NOT_EXIST  uint32 = 0x00000424
-
-     // Windows service/scm constants
-     SERVICE_BOOT_START   uint32 = 0x00000000
-     SERVICE_SYSTEM_START uint32 = 0x00000001
-     SERVICE_AUTO_START   uint32 = 0x00000002
-     SERVICE_DISABLED     uint32 = 0x00000004
-
-     // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-scmr/4e91ff36-ab5f-49ed-a43d-a308e72b0b3c
-     SERVICE_CONTINUE_PENDING uint32 = 0x00000005
-     SERVICE_PAUSE_PENDING    uint32 = 0x00000006
-     SERVICE_PAUSED           uint32 = 0x00000007
-     SERVICE_RUNNING          uint32 = 0x00000004
-     SERVICE_START_PENDING    uint32 = 0x00000002
-     SERVICE_STOP_PENDING     uint32 = 0x00000003
-     SERVICE_STOPPED          uint32 = 0x00000001
-  */
-)
-
 type Scmr struct {
-  client *dce.Client
+  goexec.Cleaner
+
+  Client *dce.Client
   ctl    svcctl.SvcctlClient
   scm    *svcctl.Handle
 
   hostname string
 }
 
-func (m *Scmr) Init(ctx context.Context, c *dce.Client) (err error) {
+const (
+  ModuleName = "SCMR"
+
+  DefaultEndpoint = "ncacn_np:[svcctl]"
+  ScmrUuid        = "367ABB81-9844-35F1-AD32-98F038001003"
+)
+
+func (m *Scmr) Connect(ctx context.Context) (err error) {
+
+  if err = m.Client.Connect(ctx); err == nil {
+    m.AddCleaners(m.Client.Close)
+  }
+  return
+}
+
+func (m *Scmr) Init(ctx context.Context) (err error) {
 
   log := zerolog.Ctx(ctx).With().
     Str("module", ModuleName).Logger()
 
-  m.client = c
-
-  if m.client.Dce() == nil {
+  if m.Client == nil || m.Client.Dce() == nil {
     return errors.New("DCE connection not initialized")
   }
 
-  m.hostname, err = c.Target.Hostname(ctx)
+  m.hostname, err = m.Client.Target.Hostname(ctx)
   if err != nil {
     log.Debug().Err(err).Msg("Failed to determine target hostname")
   }
@@ -83,7 +55,7 @@ func (m *Scmr) Init(ctx context.Context, c *dce.Client) (err error) {
     m.hostname = util.RandomHostname()
   }
 
-  m.ctl, err = svcctl.NewSvcctlClient(ctx, m.client.Dce(), dcerpc.WithObjectUUID(uuid.MustParse(ScmrUuid)))
+  m.ctl, err = svcctl.NewSvcctlClient(ctx, m.Client.Dce(), dcerpc.WithObjectUUID(uuid.MustParse(ScmrUuid)))
   if err != nil {
     log.Error().Err(err).Msg("Failed to initialize SVCCTL client")
     return fmt.Errorf("create SVCCTL client: %w", err)
@@ -108,10 +80,10 @@ func (m *Scmr) Init(ctx context.Context, c *dce.Client) (err error) {
 
 func (m *Scmr) Reconnect(ctx context.Context) (err error) {
 
-  if err = m.client.Reconnect(ctx); err != nil {
+  if err = m.Client.Reconnect(ctx); err != nil {
     return fmt.Errorf("reconnect: %w", err)
   }
-  if err = m.Init(ctx, m.client); err != nil {
+  if err = m.Init(ctx); err != nil {
     return fmt.Errorf("reconnect SCMR: %w", err)
   }
   return
@@ -143,7 +115,8 @@ func (m *Scmr) openService(ctx context.Context, name string) (svc *service, err 
 
 func (m *Scmr) startService(ctx context.Context, svc *service) error {
 
-  log := zerolog.Ctx(ctx)
+  log := zerolog.Ctx(ctx).With().
+    Str("service", svc.name).Logger()
 
   sr, err := m.ctl.StartServiceW(ctx, &svcctl.StartServiceWRequest{Service: svc.handle})
 
@@ -164,4 +137,50 @@ func (m *Scmr) startService(ctx context.Context, svc *service) error {
   }
   log.Info().Msg("Service started successfully")
   return nil
+}
+
+func (m *Scmr) deleteService(ctx context.Context, svc *service) (err error) {
+
+  log := zerolog.Ctx(ctx).With().
+    Str("service", svc.name).Logger()
+
+  deleteResponse, err := m.ctl.DeleteService(ctx, &svcctl.DeleteServiceRequest{
+    Service: svc.handle,
+  })
+
+  if err != nil {
+    log.Error().Err(err).Msg("Failed to delete service")
+    return fmt.Errorf("delete service: %w", err)
+  }
+
+  if deleteResponse.Return != 0 {
+    log.Error().Err(err).Str("code", fmt.Sprintf("0x%02x", deleteResponse.Return)).Msg("Failed to delete service")
+    return fmt.Errorf("delete service returned non-zero exit code: 0x%02x", deleteResponse.Return)
+  }
+
+  log.Info().Msg("Deleted service")
+  return
+}
+
+func (m *Scmr) closeService(ctx context.Context, svc *service) (err error) {
+
+  log := zerolog.Ctx(ctx).With().
+    Str("service", svc.name).Logger()
+
+  closResponse, err := m.ctl.CloseService(ctx, &svcctl.CloseServiceRequest{
+    ServiceObject: svc.handle,
+  })
+
+  if err != nil {
+    log.Error().Err(err).Msg("Failed to close service handle")
+    return fmt.Errorf("close service: %w", err)
+  }
+
+  if closResponse.Return != 0 {
+    log.Error().Err(err).Str("code", fmt.Sprintf("0x%02x", closResponse.Return)).Msg("Failed to close service handle")
+    return fmt.Errorf("close service returned non-zero exit code: 0x%02x", closResponse.Return)
+  }
+
+  log.Info().Msg("Closed service handle")
+  return
 }

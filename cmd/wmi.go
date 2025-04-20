@@ -106,7 +106,7 @@ var (
         Str("method", "call").
         Logger().WithContext(gssapi.NewSecurityContext(context.Background()))
 
-      if err := goexec.ExecuteAuxiliaryMethod(ctx, &wmiCall); err != nil {
+      if err := goexec.ExecuteCleanAuxiliaryMethod(ctx, &wmiCall); err != nil {
         log.Fatal().Err(err).Msg("Operation failed")
       }
     },
