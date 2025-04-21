@@ -1,89 +1,98 @@
 package dce
 
 import (
-  "context"
-  "fmt"
-  "github.com/oiweiwei/go-msrpc/dcerpc"
-  "github.com/oiweiwei/go-msrpc/msrpc/epm/epm/v3"
-  "github.com/rs/zerolog"
+	"context"
+	"fmt"
+	"github.com/RedTeamPentesting/adauth/smbauth"
+	"github.com/oiweiwei/go-msrpc/dcerpc"
+	"github.com/oiweiwei/go-msrpc/msrpc/epm/epm/v3"
+	"github.com/rs/zerolog"
 )
 
 type Client struct {
-  Options
+	Options
 
-  conn     dcerpc.Conn
-  hostname string
+	conn     dcerpc.Conn
+	hostname string
 }
 
 func NewClient() *Client {
-  return new(Client)
+	return new(Client)
 }
 
 func (c *Client) String() string {
-  return ClientName
+	return ClientName
 }
 
 func (c *Client) Reconnect(ctx context.Context, opts ...dcerpc.Option) (err error) {
-  c.DcerpcOptions = append(c.DcerpcOptions, opts...)
+	c.DcerpcOptions = append(c.DcerpcOptions, opts...)
 
-  return c.Connect(ctx)
+	return c.Connect(ctx)
 }
 
 func (c *Client) Dce() (dce dcerpc.Conn) {
-  return c.conn
+	return c.conn
 }
 
 func (c *Client) Logger(ctx context.Context) (log zerolog.Logger) {
-  return zerolog.Ctx(ctx).With().
-    Str("client", c.String()).Logger()
+	return zerolog.Ctx(ctx).With().
+		Str("client", c.String()).Logger()
 }
 
 func (c *Client) Connect(ctx context.Context) (err error) {
 
-  log := c.Logger(ctx)
-  ctx = log.WithContext(ctx)
+	log := c.Logger(ctx)
+	ctx = log.WithContext(ctx)
 
-  var do, eo []dcerpc.Option
+	var do, eo []dcerpc.Option
 
-  do = append(do, c.DcerpcOptions...)
-  do = append(do, c.authOptions...)
+	do = append(do, c.DcerpcOptions...)
+	do = append(do, c.authOptions...)
 
-  if !c.NoSign {
-    do = append(do, dcerpc.WithSign())
-    eo = append(eo, dcerpc.WithSign())
-  }
-  if !c.NoSeal {
-    do = append(do, dcerpc.WithSeal(), dcerpc.WithSecurityLevel(dcerpc.AuthLevelPktPrivacy))
-    eo = append(eo, dcerpc.WithSeal(), dcerpc.WithSecurityLevel(dcerpc.AuthLevelPktPrivacy))
-  }
+	if c.Smb {
+		if smbDialer, err := smbauth.Dialer(ctx, c.Credential, c.Target, &smbauth.Options{}); err != nil {
+			return fmt.Errorf("parse smb auth: %w", err)
+		} else {
+			do = append(do, dcerpc.WithSMBDialer(smbDialer))
+		}
+	}
 
-  if !c.NoLog {
-    do = append(do, dcerpc.WithLogger(log))
-    eo = append(eo, dcerpc.WithLogger(log))
-  }
+	if !c.NoSign {
+		do = append(do, dcerpc.WithSign())
+		eo = append(eo, dcerpc.WithSign())
+	}
+	if !c.NoSeal {
+		do = append(do, dcerpc.WithSeal(), dcerpc.WithSecurityLevel(dcerpc.AuthLevelPktPrivacy))
+		eo = append(eo, dcerpc.WithSeal(), dcerpc.WithSecurityLevel(dcerpc.AuthLevelPktPrivacy))
+	}
 
-  if !c.NoEpm {
-    log.Debug().Msg("Using endpoint mapper")
+	if !c.NoLog {
+		do = append(do, dcerpc.WithLogger(log))
+		eo = append(eo, dcerpc.WithLogger(log))
+	}
 
-    eo = append(eo, c.epmOptions...)
-    eo = append(eo, c.authOptions...)
+	if !c.NoEpm {
+		log.Debug().Msg("Using endpoint mapper")
 
-    do = append(do, epm.EndpointMapper(ctx, c.Host, eo...))
-  }
+		eo = append(eo, c.epmOptions...)
+		eo = append(eo, c.authOptions...)
 
-  for _, e := range c.stringBindings {
-    do = append(do, dcerpc.WithEndpoint(e.String()))
-  }
+		do = append(do, epm.EndpointMapper(ctx, c.Host, eo...))
+	}
 
-  if c.conn, err = dcerpc.Dial(ctx, c.Host, do...); err != nil {
+	for _, e := range c.stringBindings {
+		do = append(do, dcerpc.WithEndpoint(e.String()))
+	}
 
-    log.Error().Err(err).Msgf("Failed to connect to %s endpoint", c.String())
-    return fmt.Errorf("dial %s: %w", c.String(), err)
-  }
+	if c.conn, err = dcerpc.Dial(ctx, c.Host, do...); err != nil {
 
-  return
+		log.Error().Err(err).Msgf("Failed to connect to %s endpoint", c.String())
+		return fmt.Errorf("dial %s: %w", c.String(), err)
+	}
+
+	return
 }
 
 func (c *Client) Close(ctx context.Context) (err error) {
-  return c.conn.Close(ctx)
+	return c.conn.Close(ctx)
 }

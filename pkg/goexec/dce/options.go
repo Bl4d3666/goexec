@@ -31,6 +31,9 @@ type Options struct {
 	// Filter stores the filter for returned endpoints from an endpoint mapper
 	Filter string `json:"filter,omitempty" yaml:"filter,omitempty"`
 
+	// Smb enables SMB transport for DCE/RPC
+	Smb bool `json:"use_smb" yaml:"use_smb"`
+
 	netDialer      goexec.Dialer
 	dialer         dcerpc.Dialer
 	authOptions    []dcerpc.Option
@@ -70,6 +73,9 @@ func (c *Client) Parse(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
+		if sb.ProtocolSequence == dcerpc.ProtocolSequenceNamedPipe {
+			c.Smb = true
+		}
 		c.stringBindings = append(c.stringBindings, sb)
 	}
 
@@ -78,6 +84,9 @@ func (c *Client) Parse(ctx context.Context) (err error) {
 		sb, err := dcerpc.ParseStringBinding(c.Filter)
 		if err != nil {
 			return err
+		}
+		if sb.ProtocolSequence == dcerpc.ProtocolSequenceNamedPipe {
+			c.Smb = true
 		}
 		c.stringBindings = append(c.stringBindings, sb)
 	}
