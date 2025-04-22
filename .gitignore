@@ -1,6 +1,7 @@
 .idea
 .logs
 .local
+/dist
 /goexec
 /patch
 /go.work

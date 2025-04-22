@@ -18,6 +18,10 @@ builds:
       - arm64
       - "386"
       - arm
+    
+    ignore:
+      - goos: windows
+        goarch: arm
 
 #upx:
 #   - enabled: true
