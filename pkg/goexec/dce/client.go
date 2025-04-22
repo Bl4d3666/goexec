@@ -6,6 +6,7 @@ import (
 	"github.com/RedTeamPentesting/adauth/smbauth"
 	"github.com/oiweiwei/go-msrpc/dcerpc"
 	"github.com/oiweiwei/go-msrpc/msrpc/epm/epm/v3"
+	msrpcSMB2 "github.com/oiweiwei/go-msrpc/smb2"
 	"github.com/rs/zerolog"
 )
 
@@ -14,10 +15,6 @@ type Client struct {
 
 	conn     dcerpc.Conn
 	hostname string
-}
-
-func NewClient() *Client {
-	return new(Client)
 }
 
 func (c *Client) String() string {
@@ -50,20 +47,32 @@ func (c *Client) Connect(ctx context.Context) (err error) {
 	do = append(do, c.authOptions...)
 
 	if c.Smb {
-		if smbDialer, err := smbauth.Dialer(ctx, c.Credential, c.Target, &smbauth.Options{}); err != nil {
+		c.DcerpcOptions = append(c.DcerpcOptions, dcerpc.WithInsecure())
+
+		var so []msrpcSMB2.DialerOption
+
+		if !c.NoSign {
+			so = append(so, msrpcSMB2.WithSign())
+		}
+		if !c.NoSeal {
+			so = append(so, msrpcSMB2.WithSeal())
+		}
+
+		if smbDialer, err := smbauth.Dialer(ctx, c.Credential, c.Target, &smbauth.Options{SMBOptions: so}); err != nil {
 			return fmt.Errorf("parse smb auth: %w", err)
+
 		} else {
 			do = append(do, dcerpc.WithSMBDialer(smbDialer))
 		}
-	}
-
-	if !c.NoSign {
-		do = append(do, dcerpc.WithSign())
-		eo = append(eo, dcerpc.WithSign())
-	}
-	if !c.NoSeal {
-		do = append(do, dcerpc.WithSeal(), dcerpc.WithSecurityLevel(dcerpc.AuthLevelPktPrivacy))
-		eo = append(eo, dcerpc.WithSeal(), dcerpc.WithSecurityLevel(dcerpc.AuthLevelPktPrivacy))
+	} else {
+		if !c.NoSign {
+			do = append(do, dcerpc.WithSign())
+			eo = append(eo, dcerpc.WithSign())
+		}
+		if !c.NoSeal {
+			do = append(do, dcerpc.WithSeal(), dcerpc.WithSecurityLevel(dcerpc.AuthLevelPktPrivacy))
+			eo = append(eo, dcerpc.WithSeal(), dcerpc.WithSecurityLevel(dcerpc.AuthLevelPktPrivacy))
+		}
 	}
 
 	if !c.NoLog {
