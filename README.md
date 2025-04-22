@@ -1,5 +1,7 @@
 # Goexec - Remote Execution Multitool
 
+![goexec](https://github.com/user-attachments/assets/4adc2087-3edf-4221-a310-824f9a185146)
+
 Goexec is a new take on some of the methods used to gain remote execution on Windows devices. Goexec implements a number of largely unrealized execution methods and provides significant OPSEC improvements overall.
 
 The original post about Goexec v0.1.0 can be found [here](https://www.falconops.com/blog/introducing-goexec)
