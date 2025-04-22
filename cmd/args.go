@@ -19,8 +19,8 @@ func registerLoggingFlags(fs *pflag.FlagSet) {
 
 func registerNetworkFlags(fs *pflag.FlagSet) {
   fs.StringVarP(&proxy, "proxy", "x", "", "Proxy `URI`")
+  fs.StringVarP(&rpcClient.Filter, "epm-filter", "F", "", "String binding to filter endpoints returned by the RPC endpoint mapper (EPM)")
   fs.StringVar(&rpcClient.Endpoint, "endpoint", "", "Explicit RPC endpoint definition")
-  fs.StringVar(&rpcClient.Filter, "epm-filter", "", "String binding to filter endpoints returned by the RPC endpoint mapper (EPM)")
   fs.BoolVar(&rpcClient.NoEpm, "no-epm", false, "Do not use EPM to automatically detect RPC endpoints")
   fs.BoolVar(&rpcClient.NoSign, "no-sign", false, "Disable signing on DCERPC messages")
   fs.BoolVar(&rpcClient.NoSeal, "no-seal", false, "Disable packet stub encryption on DCERPC messages")
