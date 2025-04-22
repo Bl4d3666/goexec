@@ -7,6 +7,7 @@ import (
   "fmt"
   "github.com/FalconOpsLLC/goexec/pkg/goexec"
   "github.com/FalconOpsLLC/goexec/pkg/goexec/dce"
+  "github.com/oiweiwei/go-msrpc/dcerpc"
   "github.com/oiweiwei/go-msrpc/msrpc/tsch/itaskschedulerservice/v1"
   "github.com/rs/zerolog"
 )
@@ -51,7 +52,7 @@ func (m *Tsch) Init(ctx context.Context) (err error) {
   }
 
   // Create ITaskSchedulerService Client
-  m.tsch, err = itaskschedulerservice.NewTaskSchedulerServiceClient(ctx, m.Client.Dce())
+  m.tsch, err = itaskschedulerservice.NewTaskSchedulerServiceClient(ctx, m.Client.Dce(), dcerpc.WithSeal())
   return
 }
 

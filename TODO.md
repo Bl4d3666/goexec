@@ -40,7 +40,7 @@
 ## Bug Fixes
 
 - [X] Fix SMB transport for SCMR module - `rpc_s_cannot_support: The requested operation is not supported.`
-- [ ] Fix proxy - EPM, SMB don't use the proxy dialer
+- [X] Fix proxy - EPM doesn't use the proxy dialer
 - [ ] Fix SCMR `change` method so that dependencies field isn't permanently overwritten
 
 ## Lower Priority
