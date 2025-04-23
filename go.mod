@@ -1,9 +1,11 @@
 module github.com/FalconOpsLLC/goexec
 
-go 1.24.1
+go 1.23.3
+
+toolchain go1.24.1
 
 require (
-	github.com/RedTeamPentesting/adauth v0.2.0
+	github.com/RedTeamPentesting/adauth v0.2.2
 	github.com/google/uuid v1.6.0
 	github.com/oiweiwei/go-msrpc v1.2.5
 	github.com/oiweiwei/go-smb2.fork v1.0.0
