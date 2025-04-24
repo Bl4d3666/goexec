@@ -11,7 +11,7 @@
 
 ## SCMR
 
-- [X] Clean up SCMR module 
+- [X] Clean up SCMR module
 - [X] add dynamic string binding support
 - [X] general cleanup. Use TSCH & WMI as reference
 - [ ] Output
@@ -39,8 +39,9 @@
 
 ## Bug Fixes
 
-- [X] Fix SMB transport for SCMR module - `rpc_s_cannot_support: The requested operation is not supported.`
-- [X] Fix proxy - EPM doesn't use the proxy dialer
+- [X] (Fixed) SMB transport for SCMR module - `rpc_s_cannot_support: The requested operation is not supported.`
+- [X] (Fixed) Proxy - EPM doesn't use the proxy dialer
+- [X] (Fixed) Kerberos requests don't dial through proxy
 - [ ] Fix SCMR `change` method so that dependencies field isn't permanently overwritten
 
 ## Lower Priority
