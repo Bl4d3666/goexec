@@ -85,7 +85,8 @@ func (c *Client) Parse(ctx context.Context) (err error) {
   // Validate authentication parameters
   c.dialer, err = smbauth.Dialer(ctx, c.Credential, c.Target,
     &smbauth.Options{
-      SMBOptions: do,
+      KerberosDialer: c.netDialer,
+      SMBOptions:     do,
     })
 
   if err != nil {

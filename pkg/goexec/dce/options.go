@@ -6,6 +6,7 @@ import (
   "github.com/FalconOpsLLC/goexec/pkg/goexec"
   "github.com/RedTeamPentesting/adauth/dcerpcauth"
   "github.com/oiweiwei/go-msrpc/dcerpc"
+  "net"
 )
 
 type Options struct {
@@ -34,7 +35,7 @@ type Options struct {
   Smb bool `json:"use_smb" yaml:"use_smb"`
 
   stringBindings []*dcerpc.StringBinding
-  dialer         dcerpc.Dialer
+  dialer         goexec.Dialer
   authOptions    []dcerpc.Option
   DcerpcOptions  []dcerpc.Option
   EpmOptions     []dcerpc.Option
@@ -90,20 +91,26 @@ func (c *Client) Parse(ctx context.Context) (err error) {
 
   if c.Proxy != "" {
     // Parse proxy URL
-    d, err := goexec.ParseProxyURI(c.Proxy)
+    c.dialer, err = goexec.ParseProxyURI(c.Proxy)
     if err != nil {
       return err
     }
-    var ok bool
-    if c.dialer, ok = d.(dcerpc.Dialer); !ok {
+    if d, ok := c.dialer.(dcerpc.Dialer); !ok {
       return fmt.Errorf("cannot cast %T to dcerpc.Dialer", d)
+
+    } else {
+      c.DcerpcOptions = append(c.DcerpcOptions, dcerpc.WithDialer(d))
+      c.EpmOptions = append(c.EpmOptions, dcerpc.WithDialer(d))
     }
-    c.DcerpcOptions = append(c.DcerpcOptions, dcerpc.WithDialer(c.dialer))
-    c.EpmOptions = append(c.EpmOptions, dcerpc.WithDialer(c.dialer))
+
+  } else {
+    c.dialer = &net.Dialer{}
   }
 
   // Parse authentication parameters
-  if c.authOptions, err = dcerpcauth.AuthenticationOptions(ctx, c.Credential, c.Target, &dcerpcauth.Options{}); err != nil {
+  if c.authOptions, err = dcerpcauth.AuthenticationOptions(ctx, c.Credential, c.Target, &dcerpcauth.Options{
+    KerberosDialer: c.dialer, // Use the same net dialer as dcerpc
+  }); err != nil {
     return fmt.Errorf("parse auth c: %w", err)
   }
 
