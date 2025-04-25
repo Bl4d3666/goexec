@@ -1,4 +1,4 @@
-_# GoExec - Remote Execution Multitool
+# GoExec - Remote Execution Multitool
 
 ![goexec](https://github.com/user-attachments/assets/16782082-5a42-477c-95e2-46295bbe3c34)
 
