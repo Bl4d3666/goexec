@@ -15,6 +15,7 @@ import (
 	"golang.org/x/term"
 	"io"
 	"os"
+	"runtime/pprof"
 )
 
 type flagSet struct {
@@ -56,6 +57,7 @@ var (
 	defaultAuthFlags, defaultLogFlags, defaultNetRpcFlags *flagSet
 
 	returnCode int
+	toClose    []io.Closer
 
 	// === IO ===
 	stageFilePath string
@@ -78,6 +80,13 @@ var (
 	rpcClient dce.Client
 	smbClient smb.Client
 	// ===============
+
+	// === Resource profiling ===
+	cpuProfile     string
+	memProfile     string
+	cpuProfileFile io.WriteCloser
+	memProfileFile io.WriteCloser
+	// ==========================
 
 	exec = goexec.ExecutionIO{
 		Input:  new(goexec.ExecutionInput),
@@ -113,6 +122,7 @@ Authors: FalconOps LLC (@FalconOpsLLC),
 					if err != nil {
 						return
 					}
+					toClose = append(toClose, logFile)
 					logJson = true
 				}
 				if logQuiet {
@@ -126,6 +136,29 @@ Authors: FalconOps LLC (@FalconOpsLLC),
 					log = zerolog.New(zerolog.ConsoleWriter{Out: logFile}).With().Timestamp().Logger()
 				}
 				log = log.Level(logLevel)
+			}
+
+			// CPU / memory profiling
+			{
+				if cpuProfile != "" {
+					if cpuProfileFile, err = os.OpenFile(cpuProfile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644); err != nil {
+						log.Error().Err(err).Msg("Failed to open CPU profile for writing")
+						return
+					}
+					toClose = append(toClose, cpuProfileFile)
+
+					if err = pprof.StartCPUProfile(cpuProfileFile); err != nil {
+						log.Error().Err(err).Msg("Failed to start CPU profile")
+						return
+					}
+				}
+				if memProfile != "" {
+					if memProfileFile, err = os.OpenFile(memProfile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644); err != nil {
+						log.Error().Err(err).Msg("Failed to open memory profile for writing")
+						return
+					}
+					toClose = append(toClose, memProfileFile)
+				}
 			}
 
 			if proxy != "" {
@@ -151,11 +184,26 @@ Authors: FalconOps LLC (@FalconOpsLLC),
 		},
 
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			if logFile != nil {
-				if err := logFile.Close(); err != nil {
-					// ...
+
+			if memProfileFile != nil {
+				if err := pprof.WriteHeapProfile(memProfileFile); err != nil {
+					log.Error().Err(err).Msg("Failed to write memory profile")
+					return
 				}
 			}
+
+			if cpuProfileFile != nil {
+				pprof.StopCPUProfile()
+			}
+
+			for _, c := range toClose {
+				if c != nil {
+					if err := c.Close(); err != nil {
+						log.Warn().Err(err).Msg("Failed to close stream")
+					}
+				}
+			}
+
 			if exec.Input != nil && exec.Input.StageFile != nil {
 				if err := exec.Input.StageFile.Close(); err != nil {
 					// ...
@@ -180,6 +228,19 @@ func init() {
 		gssapi.AddMechanism(ssp.SPNEGO)
 		gssapi.AddMechanism(ssp.NTLM)
 		gssapi.AddMechanism(ssp.KRB5)
+	}
+
+	// CPU / Memory profiling
+	{
+		rootCmd.PersistentFlags().StringVar(&cpuProfile, "cpu-profile", "", "Write CPU profile to `file`")
+		rootCmd.PersistentFlags().StringVar(&memProfile, "mem-profile", "", "Write memory profile to `file`")
+
+		if err := rootCmd.PersistentFlags().MarkHidden("cpu-profile"); err != nil {
+			panic(err)
+		}
+		if err := rootCmd.PersistentFlags().MarkHidden("mem-profile"); err != nil {
+			panic(err)
+		}
 	}
 
 	// Cobra init
