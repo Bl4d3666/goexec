@@ -151,11 +151,15 @@ Authors: FalconOps LLC (@FalconOpsLLC),
 		},
 
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			if err := logFile.Close(); err != nil {
-				// ...
+			if logFile != nil {
+				if err := logFile.Close(); err != nil {
+					// ...
+				}
 			}
-			if err := exec.Input.StageFile.Close(); err != nil {
-				// ...
+			if exec.Input != nil && exec.Input.StageFile != nil {
+				if err := exec.Input.StageFile.Close(); err != nil {
+					// ...
+				}
 			}
 		},
 	}
