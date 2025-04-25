@@ -450,7 +450,7 @@ Service:
 
 #### Modify Service (`scmr change`)
 
-The SCMR module's `change` method executes programs by modifying existing Windows services using the RChangeServiceConfigW method rather than calling RCreateServiceW like `scmr create`. Service is restored to its original state after execution
+The SCMR module's `change` method executes programs by modifying existing Windows services using the RChangeServiceConfigW method rather than calling RCreateServiceW like `scmr create`. The modified service is restored to its original state after execution
 
 > [!WARNING]
 > Using this module on important Windows services may brick the OS. Try using a less important service like `PlugPlay`.
@@ -483,7 +483,7 @@ Execution:
 
 #### (Auxiliary) Delete Service
 
-The auxiliary `scmr delete` method will simply delete the provided service.
+The SCMR module's auxiliary `delete` method will simply delete the provided service.
 
 ```text
 Usage:
