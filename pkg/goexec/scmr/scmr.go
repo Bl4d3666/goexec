@@ -42,10 +42,10 @@ const (
      SERVICE_STOPPED          uint32 = 0x00000001
   */
 
-  ServiceDeleteAccess uint32 = ServiceDelete
-  ServiceModifyAccess uint32 = ServiceQueryConfig | ServiceChangeConfig | ServiceStop | ServiceStart | ServiceDelete
-  ServiceCreateAccess uint32 = ScManagerCreateService | ServiceStart | ServiceStop | ServiceDelete
-  ServiceAllAccess    uint32 = ServiceCreateAccess | ServiceModifyAccess
+  ServiceDeleteAccess = ServiceDelete
+  ServiceModifyAccess = ServiceQueryConfig | ServiceChangeConfig | ServiceStop | ServiceStart | ServiceDelete
+  ServiceCreateAccess = ScManagerCreateService | ServiceStart | ServiceStop | ServiceDelete
+  ServiceAllAccess    = ServiceCreateAccess | ServiceModifyAccess
 )
 
 type service struct {
