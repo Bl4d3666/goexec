@@ -10,3 +10,7 @@
 *.pcapng
 *.log
 *.json
+*.exe
+*.prof
+*.cprof
+*.mprof
