@@ -1,143 +1,143 @@
 package scmrexec
 
 import (
-  "context"
-  "fmt"
-  "github.com/FalconOpsLLC/goexec/pkg/goexec"
-  "github.com/oiweiwei/go-msrpc/msrpc/scmr/svcctl/v2"
-  "github.com/rs/zerolog"
+	"context"
+	"errors"
+	"fmt"
+	"github.com/FalconOpsLLC/goexec/pkg/goexec"
+	"github.com/oiweiwei/go-msrpc/msrpc/scmr/svcctl/v2"
+	"github.com/rs/zerolog"
+
+	_ "github.com/oiweiwei/go-msrpc/msrpc/erref/ntstatus"
+	_ "github.com/oiweiwei/go-msrpc/msrpc/erref/win32"
 )
 
 const (
-  MethodChange = "Change"
+	MethodChange = "Change"
 )
 
 type ScmrChange struct {
-  Scmr
-  goexec.Cleaner
-  goexec.Executor
+	Scmr
+	goexec.Cleaner
+	goexec.Executor
 
-  IO goexec.ExecutionIO
+	IO goexec.ExecutionIO
 
-  NoStart     bool
-  ServiceName string
+	NoStart     bool
+	ServiceName string
 }
 
 func (m *ScmrChange) Execute(ctx context.Context, in *goexec.ExecutionIO) (err error) {
 
-  log := zerolog.Ctx(ctx).With().
-    Str("service", m.ServiceName).
-    Logger()
+	log := zerolog.Ctx(ctx).With().
+		Str("service", m.ServiceName).
+		Logger()
 
-  svc := &service{name: m.ServiceName}
+	svc := &service{name: m.ServiceName}
 
-  openResponse, err := m.ctl.OpenServiceW(ctx, &svcctl.OpenServiceWRequest{
-    ServiceManager: m.scm,
-    ServiceName:    svc.name,
-    DesiredAccess:  ServiceAllAccess,
-  })
+	openResponse, err := m.ctl.OpenServiceW(ctx, &svcctl.OpenServiceWRequest{
+		ServiceManager: m.scm,
+		ServiceName:    svc.name,
+		DesiredAccess:  ServiceAllAccess,
+	})
 
-  if err != nil {
-    log.Error().Err(err).Msg("Failed to open service handle")
-    return fmt.Errorf("open service request: %w", err)
-  }
-  if openResponse.Return != 0 {
-    log.Error().Err(err).Msg("Failed to open service handle")
-    return fmt.Errorf("create service: %w", err)
-  }
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to open service handle")
+		return fmt.Errorf("open service request: %w", err)
+	}
+	if openResponse.Return != 0 {
+		log.Error().Err(err).Msg("Failed to open service handle")
+		return fmt.Errorf("create service: %w", err)
+	}
 
-  svc.handle = openResponse.Service
-  log.Info().Msg("Opened service handle")
+	svc.handle = openResponse.Service
+	log.Info().Msg("Opened service handle")
 
-  defer m.AddCleaners(func(ctxInner context.Context) error {
+	defer m.AddCleaners(func(ctxInner context.Context) error {
+		return m.closeService(ctxInner, svc)
+	})
 
-    r, errInner := m.ctl.CloseService(ctxInner, &svcctl.CloseServiceRequest{
-      ServiceObject: svc.handle,
-    })
-    if errInner != nil {
-      return fmt.Errorf("close service: %w", errInner)
-    }
-    if r.Return != 0 {
-      return fmt.Errorf("close service returned non-zero exit code: %02x", r.Return)
-    }
-    log.Info().Msg("Closed service handle")
+	// Note the original service configuration
+	queryResponse, err := m.ctl.QueryServiceConfigW(ctx, &svcctl.QueryServiceConfigWRequest{
+		Service:      svc.handle,
+		BufferLength: 8 * 1024,
+	})
 
-    return nil
-  })
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to fetch service configuration")
+		return fmt.Errorf("get service config: %w", err)
+	}
 
-  // Note the original service configuration
-  queryResponse, err := m.ctl.QueryServiceConfigW(ctx, &svcctl.QueryServiceConfigWRequest{
-    Service:      svc.handle,
-    BufferLength: 8 * 1024,
-  })
+	log.Info().Str("binaryPath", queryResponse.ServiceConfig.BinaryPathName).Msg("Fetched original service configuration")
+	svc.originalConfig = queryResponse.ServiceConfig
 
-  if err != nil {
-    log.Error().Err(err).Msg("Failed to fetch service configuration")
-    return fmt.Errorf("get service config: %w", err)
-  }
-  if queryResponse.Return != 0 {
-    log.Error().Err(err).Msg("Failed to query service configuration")
-    return fmt.Errorf("query service config: %w", err)
-  }
+	stopResponse, err := m.ctl.ControlService(ctx, &svcctl.ControlServiceRequest{
+		Service: svc.handle,
+		Control: ServiceControlStop,
+	})
 
-  log.Info().Str("binaryPath", queryResponse.ServiceConfig.BinaryPathName).Msg("Fetched original service configuration")
-  svc.originalConfig = queryResponse.ServiceConfig
+	if err != nil {
+		if stopResponse == nil || stopResponse.Return != ErrorServiceNotActive {
 
-  stopResponse, err := m.ctl.ControlService(ctx, &svcctl.ControlServiceRequest{
-    Service: svc.handle,
-    Control: ServiceControlStop,
-  })
+			log.Error().Err(err).Msg("Failed to stop existing service")
+			return fmt.Errorf("stop service: %w", err)
+		}
 
-  if err != nil {
-    if stopResponse == nil || stopResponse.Return != ErrorServiceNotActive {
+		log.Debug().Msg("Service is not running")
 
-      log.Error().Err(err).Msg("Failed to stop existing service")
-      return fmt.Errorf("stop service: %w", err)
-    }
+		// FEATURE: restore state
+		/*
+		   defer m.AddCleaners(func(ctxInner context.Context) error {
+		     // ...
+		     return nil
+		   })
+		*/
 
-    log.Debug().Msg("Service is not running")
+	} else {
+		log.Info().Msg("Stopped existing service")
+	}
 
-    // TODO: restore state
-    /*
-       defer m.AddCleaners(func(ctxInner context.Context) error {
-         // ...
-         return nil
-       })
-    */
+	req := &svcctl.ChangeServiceConfigWRequest{
+		Service:          svc.handle,
+		BinaryPathName:   in.String(),
+		DisplayName:      svc.originalConfig.DisplayName,
+		ServiceType:      svc.originalConfig.ServiceType,
+		StartType:        ServiceDemandStart,
+		ErrorControl:     svc.originalConfig.ErrorControl,
+		LoadOrderGroup:   svc.originalConfig.LoadOrderGroup,
+		ServiceStartName: svc.originalConfig.ServiceStartName,
+		TagID:            svc.originalConfig.TagID,
+		//Dependencies:     []byte(svc.originalConfig.Dependencies), // TODO
+	}
 
-  } else {
-    log.Info().Msg("Stopped existing service")
-  }
+	_, err = m.ctl.ChangeServiceConfigW(ctx, req)
 
-  changeResponse, err := m.ctl.ChangeServiceConfigW(ctx, &svcctl.ChangeServiceConfigWRequest{
-    Service:          svc.handle,
-    BinaryPathName:   in.String(),
-    DisplayName:      svc.originalConfig.DisplayName,
-    ServiceType:      svc.originalConfig.ServiceType,
-    StartType:        ServiceDemandStart,
-    ErrorControl:     svc.originalConfig.ErrorControl,
-    LoadOrderGroup:   svc.originalConfig.LoadOrderGroup,
-    ServiceStartName: svc.originalConfig.ServiceStartName,
-    TagID:            svc.originalConfig.TagID,
-    //Dependencies:     []byte(svc.originalConfig.Dependencies), // TODO
-  })
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to request service configuration change")
+		return fmt.Errorf("change service config request: %w", err)
+	}
 
-  if err != nil {
-    log.Error().Err(err).Msg("Failed to request service configuration change")
-    return fmt.Errorf("change service config request: %w", err)
-  }
-  if changeResponse.Return != 0 {
-    log.Error().Err(err).Msg("Failed to change service configuration")
-    return fmt.Errorf("change service config: %w", err)
-  }
+	m.AddCleaners(func(ctxInner context.Context) error {
+		req.BinaryPathName = svc.originalConfig.BinaryPathName
 
-  if !m.NoStart {
+		if ctxInner.Err() != nil && errors.Is(ctxInner.Err(), context.DeadlineExceeded) {
+			ctxInner = context.WithoutCancel(context.Background())
+		}
+		_, err := m.ctl.ChangeServiceConfigW(ctxInner, req)
 
-    err = m.startService(ctx, svc)
-    if err != nil {
-      log.Error().Err(err).Msg("Failed to start service")
-    }
-  }
+		if err != nil {
+			return fmt.Errorf("restore service config: %w", err)
+		}
+		return nil
+	})
 
-  return
+	if !m.NoStart {
+
+		err = m.startService(ctx, svc)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to start service")
+		}
+	}
+
+	return
 }
