@@ -76,8 +76,7 @@ func (m *Wmi) Init(ctx context.Context) (err error) {
 	var newOpts []dcerpc.Option
 
 	for _, bind := range actResponse.OXIDBindings.GetStringBindings() {
-		stringBinding, err := dcerpc.ParseStringBinding("ncacn_ip_tcp:" + bind.NetworkAddr) // TODO: try bind.String()
-
+		stringBinding, err := dcerpc.ParseStringBinding(bind.String())
 		if err != nil {
 			log.Debug().Err(err).Msg("Failed to parse string binding")
 			continue
@@ -106,12 +105,12 @@ func (m *Wmi) Init(ctx context.Context) (err error) {
 		NetworkResource: m.Resource,
 	})
 
-	log.Info().Msg("Completed NTLMLogin operation")
-
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to login on remote instance")
 		return fmt.Errorf("login: IWbemLevel1Login::NTLMLogin: %w", err)
 	}
+
+	log.Info().Msg("Completed NTLMLogin operation")
 
 	ipid = login.Namespace.InterfacePointer().IPID()
 	m.servicesClient, err = iwbemservices.NewServicesClient(ctx, m.Client.Dce(), dcom.WithIPID(ipid))
