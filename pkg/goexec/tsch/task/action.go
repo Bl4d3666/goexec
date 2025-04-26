@@ -85,7 +85,7 @@ type ShowMessageAction struct {
 
 // NamedValues holds zero or more <Value name="…">…</Value> entries.
 type NamedValues struct {
-  XMLName xml.Name     `xml:"HeaderFields"`
+  XMLName xml.Name     //`xml:"HeaderFields"`
   Value   []NamedValue `xml:"Value"`
 }
 
