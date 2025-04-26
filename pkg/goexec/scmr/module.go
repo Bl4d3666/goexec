@@ -11,6 +11,9 @@ import (
 	"github.com/oiweiwei/go-msrpc/midl/uuid"
 	"github.com/oiweiwei/go-msrpc/msrpc/scmr/svcctl/v2"
 	"github.com/rs/zerolog"
+
+	_ "github.com/oiweiwei/go-msrpc/msrpc/erref/ntstatus"
+	_ "github.com/oiweiwei/go-msrpc/msrpc/erref/win32"
 )
 
 type Scmr struct {
