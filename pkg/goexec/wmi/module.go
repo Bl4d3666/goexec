@@ -81,8 +81,11 @@ func (m *Wmi) Init(ctx context.Context) (err error) {
 			log.Debug().Err(err).Msg("Failed to parse string binding")
 			continue
 		}
-		stringBinding.NetworkAddress = m.Client.Target.AddressWithoutPort()
-		newOpts = append(newOpts, dcerpc.WithEndpoint(stringBinding.String()))
+		// Only consider ncacn_ip_tcp endpoints
+		if stringBinding.ProtocolSequence == dcerpc.ProtocolSequenceIPTCP {
+			stringBinding.NetworkAddress = m.Client.Target.AddressWithoutPort()
+			newOpts = append(newOpts, dcerpc.WithEndpoint(stringBinding.String()))
+		}
 	}
 
 	if err = m.Client.Reconnect(ctx, newOpts...); err != nil {
