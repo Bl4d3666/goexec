@@ -34,6 +34,24 @@ CGO_ENABLED=0 go build -ldflags="-s -w"
 sudo install ./goexec /usr/local/bin
 ```
 
+### Install with Docker
+
+We've provided a Dockerfile to build and run GoExec within Docker containers.
+
+```shell
+# (Linux) Install GoExec Docker image
+# Fetch source
+git clone https://github.com/FalconOpsLLC/goexec
+cd goexec
+
+# Build goexec image
+docker build . --tag goexec --network host
+
+# Run goexec via Docker container
+alias goexec='docker run -it --rm --name goexec goexec'
+goexec -h # display help menu
+```
+
 ### Install from Release
 
 You may also download [the latest release](https://github.com/FalconOpsLLC/goexec/releases/latest) for 64-bit Windows, macOS, or Linux.
