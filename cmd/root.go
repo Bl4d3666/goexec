@@ -60,9 +60,9 @@ var (
   toClose    []io.Closer
 
   // === IO ===
-  stageFilePath string
-  outputMethod  string
-  outputPath    string
+  //stageFilePath string // FUTURE
+  outputMethod string
+  outputPath   string
   // ==========
 
   // === Logging ===
@@ -196,17 +196,17 @@ Authors: FalconOps LLC (@FalconOpsLLC),
         pprof.StopCPUProfile()
       }
 
+      if exec.Input != nil && exec.Input.StageFile != nil {
+        if err := exec.Input.StageFile.Close(); err != nil {
+          log.Warn().Err(err).Msg("Failed to close stage file")
+        }
+      }
+
       for _, c := range toClose {
         if c != nil {
           if err := c.Close(); err != nil {
             log.Warn().Err(err).Msg("Failed to close stream")
           }
-        }
-      }
-
-      if exec.Input != nil && exec.Input.StageFile != nil {
-        if err := exec.Input.StageFile.Close(); err != nil {
-          // ...
         }
       }
     },

@@ -92,6 +92,8 @@ type simpleTask struct {
   Settings      taskSettings   `xml:"Settings"`
 }
 
+/*
+
 // newSettings just creates a taskSettings instance with the necessary values + a few dynamic ones
 func newSettings(terminate, onDemand, startWhenAvailable bool) *taskSettings {
   return &taskSettings{
@@ -140,6 +142,7 @@ func newTask(se *taskSettings, pr []taskPrincipal, tr taskTriggers, cmd, args st
     },
   }
 }
+*/
 
 // xmlDuration is a *very* simple implementation of xs:duration - only accepts +seconds
 func xmlDuration(dur time.Duration) string {

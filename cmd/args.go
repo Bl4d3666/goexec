@@ -29,10 +29,13 @@ func registerNetworkFlags(fs *pflag.FlagSet) {
   //cmd.MarkFlagsMutuallyExclusive("no-epm", "epm-filter")
 }
 
+// FUTURE: automatically stage & execute file
+/*
 func registerStageFlags(fs *pflag.FlagSet) {
   fs.StringVarP(&stageFilePath, "stage", "E", "", "File to stage and execute")
   //fs.StringVarP(&stageArgs ...)
 }
+*/
 
 func registerExecutionFlags(fs *pflag.FlagSet) {
   fs.StringVarP(&exec.Input.Executable, "exec", "e", "", "Remote Windows executable to invoke")

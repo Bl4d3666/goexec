@@ -13,8 +13,7 @@ import (
 type Client struct {
   Options
 
-  conn     dcerpc.Conn
-  hostname string
+  conn dcerpc.Conn
 }
 
 func (c *Client) String() string {
