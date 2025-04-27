@@ -120,11 +120,6 @@ func (m *ScmrChange) Execute(ctx context.Context, in *goexec.ExecutionIO) (err e
 	}
 
 	if !m.NoStart {
-		stopResponse, err = m.ctl.ControlService(ctx, &svcctl.ControlServiceRequest{
-			Service: svc.handle,
-			Control: 0,
-		})
-
 		err = m.startService(ctx, svc)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to start service")
@@ -149,9 +144,10 @@ func (m *ScmrChange) Execute(ctx context.Context, in *goexec.ExecutionIO) (err e
 		_, err := m.ctl.ChangeServiceConfigW(ctx, req)
 
 		if err != nil {
+			log.Error().Err(err).Msg("Failed to restore original service configuration")
 			return fmt.Errorf("restore service config: %w", err)
 		}
-		return nil
+		log.Info().Msg("Restored original service configuration")
 	}
 
 	return
