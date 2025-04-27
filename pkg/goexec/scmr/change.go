@@ -107,7 +107,7 @@ func (m *ScmrChange) Execute(ctx context.Context, in *goexec.ExecutionIO) (err e
 		LoadOrderGroup:   svc.originalConfig.LoadOrderGroup,
 		ServiceStartName: svc.originalConfig.ServiceStartName,
 		TagID:            svc.originalConfig.TagID,
-		//Dependencies:     []byte(svc.originalConfig.Dependencies), // TODO
+		Dependencies:     parseDependencies(svc.originalConfig.Dependencies),
 	}
 
 	bpn := svc.originalConfig.BinaryPathName
