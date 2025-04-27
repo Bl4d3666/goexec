@@ -8,7 +8,6 @@ import (
   "github.com/RedTeamPentesting/adauth/smbauth"
   msrpcSMB2 "github.com/oiweiwei/go-msrpc/smb2"
   "github.com/oiweiwei/go-smb2.fork"
-  "net"
 )
 
 var supportedDialects = map[msrpcSMB2.Dialect]msrpcSMB2.Dialect{
@@ -47,29 +46,14 @@ func (c *Client) Parse(ctx context.Context) (err error) {
 
   var do []msrpcSMB2.DialerOption
 
-  if c.Port == 0 {
-    c.Port = DefaultPort
-  }
-  if c.Dialect == 0 {
-    c.Dialect = DefaultDialect
-  }
+  if c.Dialect != 0 { // Use specific dialect
 
-  // Validate SMB dialect/version
-  if d, ok := supportedDialects[c.Dialect]; ok {
-    do = append(do, msrpcSMB2.WithDialect(d))
+    // Validate SMB dialect/version
+    if d, ok := supportedDialects[c.Dialect]; ok {
+      do = append(do, msrpcSMB2.WithDialect(d))
 
-  } else {
-    return errors.New("unsupported SMB version")
-  }
-
-  if c.Proxy == "" {
-    c.netDialer = &net.Dialer{} // FUTURE: additional dial c
-
-  } else {
-    // Parse proxy URL
-    c.netDialer, err = goexec.ParseProxyURI(c.Proxy)
-    if err != nil {
-      return err
+    } else {
+      return errors.New("unsupported SMB version")
     }
   }
 
