@@ -2,7 +2,6 @@ package scmrexec
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/FalconOpsLLC/goexec/pkg/goexec"
 	"github.com/oiweiwei/go-msrpc/msrpc/scmr/svcctl/v2"
@@ -24,6 +23,7 @@ type ScmrChange struct {
 	IO goexec.ExecutionIO
 
 	NoStart     bool
+	NoRevert    bool
 	ServiceName string
 }
 
@@ -107,8 +107,10 @@ func (m *ScmrChange) Execute(ctx context.Context, in *goexec.ExecutionIO) (err e
 		LoadOrderGroup:   svc.originalConfig.LoadOrderGroup,
 		ServiceStartName: svc.originalConfig.ServiceStartName,
 		TagID:            svc.originalConfig.TagID,
-		//Dependencies:     []byte(svc.originalConfig.Dependencies), // TODO
+		Dependencies:     parseDependencies(svc.originalConfig.Dependencies),
 	}
+
+	bpn := svc.originalConfig.BinaryPathName
 
 	_, err = m.ctl.ChangeServiceConfigW(ctx, req)
 
@@ -117,26 +119,35 @@ func (m *ScmrChange) Execute(ctx context.Context, in *goexec.ExecutionIO) (err e
 		return fmt.Errorf("change service config request: %w", err)
 	}
 
-	m.AddCleaners(func(ctxInner context.Context) error {
-		req.BinaryPathName = svc.originalConfig.BinaryPathName
-
-		if ctxInner.Err() != nil && errors.Is(ctxInner.Err(), context.DeadlineExceeded) {
-			ctxInner = context.WithoutCancel(context.Background())
-		}
-		_, err := m.ctl.ChangeServiceConfigW(ctxInner, req)
-
-		if err != nil {
-			return fmt.Errorf("restore service config: %w", err)
-		}
-		return nil
-	})
-
 	if !m.NoStart {
-
 		err = m.startService(ctx, svc)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to start service")
 		}
+	}
+
+	if !m.NoRevert {
+		if svc.handle == nil {
+
+			if err = m.Reconnect(ctx); err != nil {
+				return err
+			}
+			svc, err = m.openService(ctx, svc.name)
+
+			if err != nil {
+				log.Error().Err(err).Msg("Failed to reopen service handle")
+				return fmt.Errorf("reopen service: %w", err)
+			}
+		}
+		req.BinaryPathName = bpn
+		req.Service = svc.handle
+		_, err := m.ctl.ChangeServiceConfigW(ctx, req)
+
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to restore original service configuration")
+			return fmt.Errorf("restore service config: %w", err)
+		}
+		log.Info().Msg("Restored original service configuration")
 	}
 
 	return

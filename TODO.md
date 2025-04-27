@@ -47,8 +47,8 @@ We wanted to make development of this project as transparent as possible, so we'
 - [X] (Fixed) Proxy - EPM doesn't use the proxy dialer
 - [X] (Fixed) Kerberos requests don't dial through proxy
 - [X] (Fixed) Panic when closing nil log file
-- [ ] `scmr change` doesn't revert service cmdline
-- [ ] Fix SCMR `change` method so that dependencies field isn't permanently overwritten
+- [X] `scmr change` doesn't revert service cmdline
+- [X] Fix SCMR `change` method so that dependencies field isn't permanently overwritten
 
 ## Lower Priority
 

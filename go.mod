@@ -14,6 +14,7 @@ require (
 	github.com/spf13/pflag v1.0.6
 	golang.org/x/net v0.39.0
 	golang.org/x/term v0.31.0
+	golang.org/x/text v0.24.0
 )
 
 require (
@@ -32,6 +33,5 @@ require (
 	github.com/oiweiwei/gokrb5.fork/v9 v9.0.2 // indirect
 	golang.org/x/crypto v0.37.0 // indirect
 	golang.org/x/sys v0.32.0 // indirect
-	golang.org/x/text v0.24.0 // indirect
 	software.sslmate.com/src/go-pkcs12 v0.5.0 // indirect
 )
