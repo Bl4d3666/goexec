@@ -47,23 +47,19 @@ func (c *Client) Parse(ctx context.Context) (err error) {
 
   var do []msrpcSMB2.DialerOption
 
-  if c.Port == 0 {
-    c.Port = DefaultPort
-  }
-  if c.Dialect == 0 {
-    c.Dialect = DefaultDialect
-  }
+  if c.Dialect != 0 { // Use specific dialect
 
-  // Validate SMB dialect/version
-  if d, ok := supportedDialects[c.Dialect]; ok {
-    do = append(do, msrpcSMB2.WithDialect(d))
+    // Validate SMB dialect/version
+    if d, ok := supportedDialects[c.Dialect]; ok {
+      do = append(do, msrpcSMB2.WithDialect(d))
 
-  } else {
-    return errors.New("unsupported SMB version")
+    } else {
+      return errors.New("unsupported SMB version")
+    }
   }
 
   if c.Proxy == "" {
-    c.netDialer = &net.Dialer{} // FUTURE: additional dial c
+    c.netDialer = &net.Dialer{}
 
   } else {
     // Parse proxy URL
