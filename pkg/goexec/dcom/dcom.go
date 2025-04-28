@@ -12,8 +12,9 @@ const (
 )
 
 var (
-	//ShellWindowsUuid = uuid.MustParse("9BA05972-F6A8-11CF-A442-00A0C90A8F39")
-	//Mmc20Uuid        = uuid.MustParse("49B2791A-B1AE-4C90-9B8E-E860BA07F889")
+	ShellBrowserWindowUuid = uuid.MustParse("C08AFD90-F2A1-11D1-8455-00A0C91F3880")
+	ShellWindowsUuid       = uuid.MustParse("9BA05972-F6A8-11CF-A442-00A0C90A8F39")
+	Mmc20Uuid              = uuid.MustParse("49B2791A-B1AE-4C90-9B8E-E860BA07F889")
 
 	RandCid      = dcom.CID(*dtyp.GUIDFromUUID(uuid.MustParse(googleUUID.NewString())))
 	IDispatchIID = &dcom.IID{

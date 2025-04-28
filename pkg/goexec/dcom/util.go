@@ -13,12 +13,9 @@ import (
 	_ "github.com/oiweiwei/go-msrpc/msrpc/erref/win32"
 )
 
-func callComMethod(ctx context.Context, dc idispatch.DispatchClient, method string, args ...*oaut.Variant) (ir *idispatch.InvokeResponse, err error) {
+func callComMethod(ctx context.Context, dc idispatch.DispatchClient, id *dcom.IPID, method string, args ...*oaut.Variant) (ir *idispatch.InvokeResponse, err error) {
 
 	parts := strings.Split(method, ".")
-
-	var id *dcom.IPID
-	var gr *idispatch.GetIDsOfNamesResponse
 
 	for i, obj := range parts {
 
@@ -28,7 +25,7 @@ func callComMethod(ctx context.Context, dc idispatch.DispatchClient, method stri
 			opts = append(opts, dcom.WithIPID(id))
 		}
 
-		gr, err = dc.GetIDsOfNames(ctx, &idispatch.GetIDsOfNamesRequest{
+		gr, err := dc.GetIDsOfNames(ctx, &idispatch.GetIDsOfNamesRequest{
 			This:     ORPCThis,
 			IID:      &dcom.IID{},
 			LocaleID: LcEnglishUs,
