@@ -58,7 +58,7 @@ func (c *Client) Connect(ctx context.Context) (err error) {
   }
 
   // Establish TCP connection
-  c.conn, err = c.netDialer.Dial("tcp", net.JoinHostPort(c.Host, fmt.Sprintf("%d", c.Port)))
+  c.conn, err = c.netDialer.Dial("tcp", net.JoinHostPort(c.Host, "445"))
 
   if err != nil {
     return err
