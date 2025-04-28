@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	MethodShellWindows = "ShellWindows" // MMC20.Application::Document.ActiveView.ExecuteShellCommand
+	MethodShellWindows = "ShellWindows" // ShellWindows::Item().Document.Application.ShellExecute
 )
 
 type DcomShellWindows struct {
@@ -27,7 +27,7 @@ func (m *DcomShellWindows) Execute(ctx context.Context, execIO *goexec.Execution
 
 	log := zerolog.Ctx(ctx).With().
 		Str("module", ModuleName).
-		Str("method", MethodMmc).
+		Str("method", MethodShellWindows).
 		Logger()
 
 	method := "Item"
