@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	MethodShellBrowserWindow = "ShellBrowserWindow" // MMC20.Application::Document.ActiveView.ExecuteShellCommand
+	MethodShellBrowserWindow = "ShellBrowserWindow" // ShellBrowserWindow::Document.Application.ShellExecute
 )
 
 type DcomShellBrowserWindow struct {
