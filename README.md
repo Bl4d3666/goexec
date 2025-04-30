@@ -196,9 +196,17 @@ WMI:
 
 The `dcom` module uses exposed Distributed Component Object Model (DCOM) objects to spawn processes.
 
+> [!WARNING]
+> The DCOM module is generally less reliable than other modules because the underlying methods are often reliant on the target Windows version and specific Windows settings.
+
 ```text
 Usage:
   goexec dcom [command] [flags]
+
+Available Commands:
+  mmc                Execute with the MMC20.Application DCOM object
+  shellwindows       Execute with the ShellWindows DCOM object
+  shellbrowserwindow Execute with the ShellBrowserWindow DCOM object
 
 ... [inherited flags] ...
 
@@ -246,6 +254,84 @@ Execution:
   -e 'cmd.exe' \
   -a '/c whoami /priv' \
   -o ./privs.bin # Save output to ./privs.bin
+```
+
+#### `ShellWindows` Method (`dcom shellwindows`)
+
+The `shellwindows` method uses the [ShellWindows](https://learn.microsoft.com/en-us/windows/win32/shell/shellwindows) DCOM object to call `Item().Document.Application.ShellExecute` and spawn a remote process. This execution method isn't nearly as stable as the `dcom mmc` method for a few reasons:
+
+- This method may not work on the latest Windows versions
+- It may require that there is an active desktop session on the target machine.
+- Successful execution may be on behalf of the desktop user, not necessarily an administrator.
+
+```text
+Usage:
+  goexec dcom shellwindows [target] [flags]
+
+Execution:
+  -e, --exec string           Remote Windows executable to invoke
+  -a, --args string           Process command line arguments
+  -c, --command string        Windows process command line (executable & arguments)
+  -o, --out string            Fetch execution output to file or "-" for standard output
+  -m, --out-method string     Method to fetch execution output (default "smb")
+      --no-delete-out         Preserve output file on remote filesystem
+      --directory directory   Working directory (default "C:\\")
+      --app-window ID         Application window state ID (default "0")
+... [inherited flags] ...
+```
+
+The app window argument (`--app-window`) must be one of the values described [here (`vShow` parameter)](https://learn.microsoft.com/en-us/windows/win32/shell/shell-shellexecute).
+
+##### Examples
+
+```shell
+# Authenticate with local admin NT hash, execute `netstat.exe -anop tcp` w/ output
+./goexec dcom shellwindows "$target" \
+  -u "$auth_user" \
+  -H "$auth_nt" \
+  -e 'netstat.exe' \
+  -a '-anop tcp' \
+  -o- # write to standard output
+
+# Authenticate with local admin password, open maximized notepad window on desktop
+./goexec dcom shellwindows "$target" \
+  -u "$auth_user" \
+  -p "$auth_pass" \
+  -e 'notepad.exe' \
+  --directory 'C:\Windows' \
+  --app-window 3 # Maximized
+```
+
+#### `ShellBrowserWindow` Method (`dcom shellbrowserwindow`)
+
+The `shellbrowserwindow` method uses the exposed [ShellBrowserWindow](https://strontic.github.io/xcyclopedia/library/clsid_c08afd90-f2a1-11d1-8455-00a0c91f3880.html) DCOM object to call `Document.Application.ShellExecute` and spawn the provided process. The potential constraints of this method are similar to the [ShellWindows method](#shellwindows-method-dcom-shellwindows).
+
+```text
+Usage:
+  goexec dcom shellbrowserwindow [target] [flags]
+
+Execution:
+  -e, --exec string           Remote Windows executable to invoke
+  -a, --args string           Process command line arguments
+  -c, --command string        Windows process command line (executable & arguments)
+  -o, --out string            Fetch execution output to file or "-" for standard output
+  -m, --out-method string     Method to fetch execution output (default "smb")
+      --no-delete-out         Preserve output file on remote filesystem
+      --directory directory   Working directory (default "C:\\")
+      --app-window ID         Application window state ID (default "0")
+
+... [inherited flags] ...
+```
+
+##### Examples
+
+```shell
+# Authenticate with NT hash, open explorer.exe maximized
+./goexec dcom shellbrowserwindow "$target" \
+  -u "$auth_user@$domain" \
+  -H "$auth_nt" \
+  -e 'explorer.exe' \
+  --app-window 3
 ```
 
 ### Task Scheduler Module (`tsch`)
