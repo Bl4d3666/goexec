@@ -27,7 +27,7 @@ type Dcom struct {
 	goexec.Executor
 
 	Client  *dce.Client
-	ClassID string
+	ClassID *uuid.UUID
 
 	dispatchClient idispatch.DispatchClient
 }
@@ -49,9 +49,11 @@ func (m *Dcom) Init(ctx context.Context) (err error) {
 		return errors.New("DCE connection not initialized")
 	}
 
-	m.ClassID = "49B2791A-B1AE-4C90-9B8E-E860BA07F889"
-	//m.ClassID = "9BA05972-F6A8-11CF-A442-00A0C90A8F39"
-	class := dcom.ClassID(*dtyp.GUIDFromUUID(uuid.MustParse(m.ClassID)))
+	if m.ClassID == nil {
+		return errors.New("CLSID not specified")
+	}
+
+	class := dcom.ClassID(*dtyp.GUIDFromUUID(m.ClassID))
 
 	if class.GUID() == nil {
 		return fmt.Errorf("invalid class ID: %s", m.ClassID)

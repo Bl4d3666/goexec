@@ -9,8 +9,12 @@ We wanted to make development of this project as transparent as possible, so we'
 - [X] Generate random name/path
 - [X] Output
 - [X] Add `tsch change`
-- [ ] Serialize XML with default indent level
-- [ ] Add --session to `tsch change`
+- [ ] Serialize XML with default indent level?
+
+### `tsch change`
+
+- [ ] Add `--session` (like `tsch demand`)
+- [ ] Add the option to avoid direct task start using TimeTrigger (similar to `tsch create`)
 
 ## SCMR
 
@@ -66,7 +70,8 @@ We wanted to make development of this project as transparent as possible, so we'
 
 ### DCOM
 
-- [ ] ShellWindows & ShellBrowserWindow
+- [X] ShellWindows 
+- [ ] ShellBrowserWindow
 
 ### WinRM
 
