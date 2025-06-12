@@ -10,6 +10,7 @@ import (
 	"github.com/oiweiwei/go-msrpc/dcerpc"
 	"github.com/oiweiwei/go-msrpc/msrpc/tsch/itaskschedulerservice/v1"
 	"github.com/rs/zerolog"
+	"strings"
 
 	_ "github.com/oiweiwei/go-msrpc/msrpc/erref/ntstatus"
 	_ "github.com/oiweiwei/go-msrpc/msrpc/erref/win32"
@@ -93,14 +94,23 @@ func (m *Tsch) registerTask(ctx context.Context, opts *registerOptions, in *goex
 			},
 		}}
 
+	var cmd, args string
+
 	cmdline := in.CommandLine()
+
+	if l := len(cmdline); l >= 1 {
+		cmd = cmdline[0]
+		if l >= 2 {
+			args = strings.Join(cmdline[1:], " ")
+		}
+	}
 
 	actions := taskActions{
 		Context: principalId,
 		Exec: []taskActionExec{
 			{
-				Command:   cmdline[0],
-				Arguments: cmdline[1],
+				Command:   cmd,
+				Arguments: args,
 			},
 		},
 	}
