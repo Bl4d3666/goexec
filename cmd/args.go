@@ -22,7 +22,7 @@ func registerNetworkFlags(fs *pflag.FlagSet) {
   fs.StringVarP(&proxy, "proxy", "x", "", "Proxy `URI`")
   fs.StringVarP(&rpcClient.Filter, "epm-filter", "F", "", "String binding to filter endpoints returned by the RPC endpoint mapper (EPM)")
   fs.StringVar(&rpcClient.Endpoint, "endpoint", "", "Explicit RPC endpoint definition")
-  fs.BoolVar(&rpcClient.NoEpm, "no-epm", false, "Do not use EPM to automatically detect RPC endpoints")
+  fs.BoolVar(&rpcClient.NoEpm, "no-epm", false, "Don't use EPM to discover RPC endpoints")
   fs.BoolVar(&rpcClient.NoSign, "no-sign", false, "Disable signing on DCERPC messages")
   fs.BoolVar(&rpcClient.NoSeal, "no-seal", false, "Disable packet stub encryption on DCERPC messages")
 
@@ -118,12 +118,19 @@ func argsSmbClient() func(cmd *cobra.Command, args []string) error {
   )
 }
 
-func argsRpcClient(proto string) func(cmd *cobra.Command, args []string) error {
+func argsRpcClient(proto string, endpoint string) func(cmd *cobra.Command, args []string) error {
   return args(
     argsTarget(proto),
 
     func(cmd *cobra.Command, args []string) (err error) {
-
+      if rpcClient.Endpoint == "" {
+        if endpoint != "" {
+          rpcClient.Endpoint = endpoint
+          rpcClient.NoEpm = true
+        } else {
+          rpcClient.NoEpm = false
+        }
+      }
       rpcClient.Target = target
       rpcClient.Credential = credential
       rpcClient.Proxy = proxy

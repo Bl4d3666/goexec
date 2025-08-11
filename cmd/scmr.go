@@ -139,7 +139,7 @@ var (
   The create method calls RCreateServiceW to create a new Windows service on the
   remote target with the provided executable & arguments as the lpBinaryPathName`,
     Args: args(
-      argsRpcClient("cifs"),
+      argsRpcClient("cifs", "ncacn_np:[svcctl]"),
       argsSmbClient(),
     ),
 
@@ -183,7 +183,7 @@ var (
   using the RChangeServiceConfigW method rather than calling RCreateServiceW
   like scmr create. The modified service is restored to its original state
   after execution`,
-    Args: argsRpcClient("cifs"),
+    Args: argsRpcClient("cifs", "ncacn_np:[svcctl]"),
 
     Run: func(cmd *cobra.Command, args []string) {
       scmrChange.Client = &rpcClient
@@ -205,7 +205,7 @@ var (
     Long: `Description:
   The delete method will simply delete the provided service.`,
 
-    Args: argsRpcClient("cifs"),
+    Args: argsRpcClient("cifs", "ncacn_np:[svcctl]"),
     Run: func(cmd *cobra.Command, args []string) {
       scmrDelete.Client = &rpcClient
 

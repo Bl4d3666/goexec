@@ -90,7 +90,7 @@ var (
   The call method creates an instance of the specified WMI class (-c),
   then calls the provided method (-m) with the provided arguments (-A).`,
     Args: args(
-      argsRpcClient("cifs"),
+      argsRpcClient("cifs", ""),
       func(cmd *cobra.Command, args []string) error {
         return json.Unmarshal([]byte(wmiArguments), &wmiCall.Args)
       }),
@@ -118,7 +118,7 @@ var (
   calls the Win32_Process.Create method with the provided command (-c),
   and optional working directory (-d).`,
     Args: args(
-      argsRpcClient("cifs"),
+      argsRpcClient("cifs", ""),
       argsOutput("smb"),
     ),
 

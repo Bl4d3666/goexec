@@ -152,7 +152,7 @@ var (
   But rather than setting a defined time when the task will start, it will
   additionally call SchRpcRun to forcefully start the task.`,
     Args: args(
-      argsRpcClient("cifs"),
+      argsRpcClient("cifs", "ncacn_np:[atsvc]"),
       argsOutput("smb"),
       argsTask,
     ),
@@ -181,7 +181,7 @@ var (
   and can even avoid calling SchRpcDelete by populating the DeleteExpiredTaskAfter
   Setting.`,
     Args: args(
-      argsRpcClient("cifs"),
+      argsRpcClient("cifs", "ncacn_np:[atsvc]"),
       argsOutput("smb"),
       argsTask,
     ),
@@ -208,7 +208,7 @@ var (
   The change method calls SchRpcRetrieveTask to fetch the definition of an existing
   task (-t), then modifies the task definition to spawn a process`,
     Args: args(
-      argsRpcClient("cifs"),
+      argsRpcClient("cifs", "ncacn_np:[atsvc]"),
       argsOutput("smb"),
 
       func(*cobra.Command, []string) error {

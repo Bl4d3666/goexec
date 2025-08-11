@@ -108,7 +108,7 @@ var (
   The mmc method uses the exposed MMC20.Application object to call Document.ActiveView.ShellExec,
   and ultimately spawn a process on the remote host.`,
     Args: args(
-      argsRpcClient("host"),
+      argsRpcClient("host", ""),
       argsOutput("smb"),
       argsAcceptValues("window", &dcomMmc.WindowState, "Minimized", "Maximized", "Restored"),
     ),
@@ -135,7 +135,7 @@ var (
   The shellwindows method uses the exposed ShellWindows DCOM object on older Windows installations
   to call Item().Document.Application.ShellExecute, and spawn the provided process.`,
     Args: args(
-      argsRpcClient("host"),
+      argsRpcClient("host", ""),
       argsOutput("smb"),
       argsAcceptValues("app-window", &dcomShellWindows.WindowState, "0", "1", "2", "3", "4", "5", "7", "10"),
     ),
@@ -162,7 +162,7 @@ var (
   The shellbrowserwindow method uses the exposed ShellBrowserWindow DCOM object on older Windows installations
   to call Document.Application.ShellExecute, and spawn the provided process.`,
     Args: args(
-      argsRpcClient("host"),
+      argsRpcClient("host", ""),
       argsOutput("smb"),
       argsAcceptValues("app-window", &dcomShellBrowserWindow.WindowState, "0", "1", "2", "3", "4", "5", "7", "10"),
     ),
