@@ -1,8 +1,6 @@
 module github.com/FalconOpsLLC/goexec
 
-go 1.24.1
-
-toolchain go1.24.4
+go 1.24.4
 
 require (
 	github.com/RedTeamPentesting/adauth v0.4.1
