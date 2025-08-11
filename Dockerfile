@@ -1,23 +1,18 @@
 FROM golang:1.24-alpine AS goexec-builder
 LABEL builder="true"
 
-WORKDIR /go/src/
+WORKDIR /go/src/github.com/github.com/FalconOpsLLC/goexec
 
-COPY cmd/ cmd/
-COPY internal/ internal/
-COPY pkg/ pkg/
-COPY main.go go.mod go.sum ./
+COPY . .
 
 ENV CGO_ENABLED=0
 
 RUN go mod download
 RUN go build -ldflags="-s -w" -o /go/bin/goexec
 
-# [For debugging]
-#FROM alpine:3 AS goexec
-
-FROM scratch AS goexec
-COPY --from="goexec-builder" /go/bin/goexec /usr/local/bin/goexec
+FROM scratch
+COPY --from="goexec-builder" /go/bin/goexec /goexec
 
 WORKDIR /io
-ENTRYPOINT ["/usr/local/bin/goexec"]
+VOLUME ["/io"]
+ENTRYPOINT ["/goexec"]
