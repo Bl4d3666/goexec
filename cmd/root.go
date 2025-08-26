@@ -2,6 +2,10 @@ package cmd
 
 import (
   "fmt"
+  "io"
+  "os"
+  "runtime/pprof"
+
   "github.com/FalconOpsLLC/goexec/pkg/goexec"
   "github.com/FalconOpsLLC/goexec/pkg/goexec/dce"
   "github.com/FalconOpsLLC/goexec/pkg/goexec/smb"
@@ -13,9 +17,6 @@ import (
   "github.com/spf13/cobra"
   "github.com/spf13/pflag"
   "golang.org/x/term"
-  "io"
-  "os"
-  "runtime/pprof"
 )
 
 type flagSet struct {
