@@ -3,14 +3,15 @@ package smb
 import (
   "context"
   "errors"
-  "github.com/FalconOpsLLC/goexec/pkg/goexec"
-  "github.com/rs/zerolog"
   "io"
   "os"
   "path/filepath"
   "regexp"
   "strings"
   "time"
+
+  "github.com/FalconOpsLLC/goexec/pkg/goexec"
+  "github.com/rs/zerolog"
 )
 
 var (
@@ -77,7 +78,7 @@ func (o *OutputFileFetcher) GetOutput(ctx context.Context, writer io.Writer) (er
     if time.Now().After(stopAt) {
       return errors.New("execution output timeout")
     }
-    if reader, err = o.Client.mount.OpenFile(o.relativePath, os.O_RDONLY, 0); err == nil {
+    if reader, err = o.Client.mount.OpenFile(o.relativePath, os.O_RDWR, 0); err == nil {
       break
     }
     time.Sleep(o.PollInterval)
