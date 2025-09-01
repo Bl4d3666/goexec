@@ -3,6 +3,7 @@ package dce
 import (
   "context"
   "fmt"
+
   "github.com/RedTeamPentesting/adauth/smbauth"
   "github.com/oiweiwei/go-msrpc/dcerpc"
   "github.com/oiweiwei/go-msrpc/msrpc/epm/epm/v3"

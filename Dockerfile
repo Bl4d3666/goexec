@@ -5,7 +5,7 @@ WORKDIR /go/src/github.com/github.com/FalconOpsLLC/goexec
 
 COPY . .
 
-ENV CGO_ENABLED=0
+ARG CGO_ENABLED=0
 
 RUN go mod download
 RUN go build -ldflags="-s -w" -o /go/bin/goexec

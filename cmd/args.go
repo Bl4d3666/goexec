@@ -5,9 +5,10 @@ import (
   "encoding/json"
   "errors"
   "fmt"
+  "os"
+
   "github.com/spf13/cobra"
   "github.com/spf13/pflag"
-  "os"
 )
 
 func registerLoggingFlags(fs *pflag.FlagSet) {

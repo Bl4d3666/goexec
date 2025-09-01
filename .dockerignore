@@ -3,5 +3,9 @@
 .gitignore
 .goreleaser.yaml
 .local
+.idea
+.editorconfig
+*.exe
+*.log
 README.md
 TODO.md
