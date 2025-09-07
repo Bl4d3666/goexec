@@ -90,8 +90,6 @@ Authentication:
       --ccache file           Kerberos CCache file name (defaults to $KRB5CCNAME, currently unset)
       --dc string             Domain controller
   -k, --kerberos              Use Kerberos authentication
-
-Use "goexec [command] --help" for more information about a command.
 ```
 
 ### Fetching Remote Process Output
@@ -223,7 +221,7 @@ Network:
 
 #### `MMC20.Application` Method (`dcom mmc`)
 
-The `mmc` method uses the exposed `MMC20.Application` object to call `Document.ActiveView.ShellExec`, and ultimately spawn a process on the remote host.
+The `mmc` method instantiates a remote `MMC20.Application` object to call `Document.ActiveView.ShellExec`, and ultimately spawn a process on the remote host.
 
 ```text
 Usage:
@@ -258,7 +256,7 @@ Execution:
 
 #### `ShellWindows` Method (`dcom shellwindows`)
 
-The `shellwindows` method uses the [ShellWindows](https://learn.microsoft.com/en-us/windows/win32/shell/shellwindows) DCOM object to call `Item().Document.Application.ShellExecute` and spawn a remote process. This execution method isn't nearly as stable as the `dcom mmc` method for a few reasons:
+The `shellwindows` method uses a [ShellWindows](https://learn.microsoft.com/en-us/windows/win32/shell/shellwindows) DCOM object to call `Item().Document.Application.ShellExecute` and spawn a remote process. This execution method isn't nearly as stable as the `dcom mmc` method for a few reasons:
 
 - This method may not work on the latest Windows versions
 - It may require that there is an active desktop session on the target machine.
@@ -277,6 +275,7 @@ Execution:
       --no-delete-out         Preserve output file on remote filesystem
       --directory directory   Working directory (default "C:\\")
       --app-window ID         Application window state ID (default "0")
+
 ... [inherited flags] ...
 ```
 
@@ -530,6 +529,8 @@ Service:
   -s, --service string        Name of service to create
       --no-delete             Don't delete service after execution
       --no-start              Don't start service
+
+... [inherited flags] ...
 ```
 
 ##### Examples
@@ -570,6 +571,8 @@ Service Control:
 Execution:
   -f, --executable-path string   Full path to remote Windows executable
   -a, --args string              Arguments to pass to executable
+
+... [inherited flags] ...
 ```
 
 ##### Examples
@@ -595,6 +598,8 @@ Usage:
 
 Service Control:
   -s, --service-name string   Name of service to delete
+
+... [inherited flags] ...
 ```
 
 ## Acknowledgements
