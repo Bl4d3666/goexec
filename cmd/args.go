@@ -24,8 +24,16 @@ func registerNetworkFlags(fs *pflag.FlagSet) {
   fs.StringVarP(&rpcClient.Filter, "epm-filter", "F", "", "String binding to filter endpoints returned by the RPC endpoint mapper (EPM)")
   fs.StringVar(&rpcClient.Endpoint, "endpoint", "", "Explicit RPC endpoint definition")
   fs.BoolVar(&rpcClient.NoEpm, "no-epm", false, "Don't use EPM to discover RPC endpoints")
+  fs.BoolVar(&rpcClient.UseEpm, "epm", false, "Use EPM to discover available bindings")
   fs.BoolVar(&rpcClient.NoSign, "no-sign", false, "Disable signing on DCERPC messages")
   fs.BoolVar(&rpcClient.NoSeal, "no-seal", false, "Disable packet stub encryption on DCERPC messages")
+
+  if err := fs.MarkHidden("no-epm"); err != nil {
+    panic(err)
+  }
+  if err := fs.MarkDeprecated("no-epm", "use --epm=false instead"); err != nil {
+    panic(err)
+  }
 
   //cmd.MarkFlagsMutuallyExclusive("endpoint", "epm-filter")
   //cmd.MarkFlagsMutuallyExclusive("no-epm", "epm-filter")
@@ -124,13 +132,8 @@ func argsRpcClient(proto string, endpoint string) func(cmd *cobra.Command, args 
     argsTarget(proto),
 
     func(cmd *cobra.Command, args []string) (err error) {
-      if rpcClient.Endpoint == "" {
-        if endpoint != "" {
-          rpcClient.Endpoint = endpoint
-          rpcClient.NoEpm = true
-        } else {
-          rpcClient.NoEpm = false
-        }
+      if rpcClient.Endpoint == "" && endpoint != "" {
+        rpcClient.Endpoint = endpoint
       }
       rpcClient.Target = target
       rpcClient.Credential = credential
