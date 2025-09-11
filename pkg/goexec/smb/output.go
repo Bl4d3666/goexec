@@ -1,100 +1,102 @@
 package smb
 
 import (
-  "context"
-  "errors"
-  "io"
-  "os"
-  "path/filepath"
-  "regexp"
-  "strings"
-  "time"
+	"context"
+	"errors"
+	"io"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"time"
 
-  "github.com/FalconOpsLLC/goexec/pkg/goexec"
-  "github.com/rs/zerolog"
+	"github.com/FalconOpsLLC/goexec/pkg/goexec"
+	"github.com/rs/zerolog"
 )
 
 var (
-  DefaultOutputPollInterval = 1 * time.Second
-  DefaultOutputPollTimeout  = 60 * time.Second
-  pathPrefix                = regexp.MustCompile(`^([a-zA-Z]:)?[\\/]*`)
+	DefaultOutputPollInterval = 500 * time.Millisecond
+	DefaultOutputPollTimeout  = 60 * time.Second
+	pathPrefix                = regexp.MustCompile(`^([a-zA-Z]:)?[\\/]*`)
 )
 
 type OutputFileFetcher struct {
-  goexec.Cleaner
+	goexec.Cleaner
 
-  Client *Client
+	Client *Client
 
-  Share            string
-  SharePath        string
-  File             string
-  DeleteOutputFile bool
-  ForceReconnect   bool
-  PollInterval     time.Duration
-  PollTimeout      time.Duration
+	Share            string
+	SharePath        string
+	File             string
+	DeleteOutputFile bool
+	ForceReconnect   bool
 
-  relativePath string
+	relativePath string
 }
 
 func (o *OutputFileFetcher) GetOutput(ctx context.Context, writer io.Writer) (err error) {
+	log := zerolog.Ctx(ctx)
+	timeout := DefaultOutputPollTimeout
+	pollInterval := DefaultOutputPollInterval
 
-  log := zerolog.Ctx(ctx)
+	if v := ctx.Value("output.timeout"); v != nil {
+		if t, ok := v.(time.Duration); ok {
+			timeout = t
+		}
+	}
+	if v := ctx.Value("output.pollInterval"); v != nil {
+		if p, ok := v.(time.Duration); ok {
+			pollInterval = p
+		}
+	}
+	shp := pathPrefix.ReplaceAllString(strings.ToLower(strings.ReplaceAll(o.SharePath, `\`, "/")), "")
+	fp := pathPrefix.ReplaceAllString(strings.ToLower(strings.ReplaceAll(o.File, `\`, "/")), "")
 
-  if o.PollInterval == 0 {
-    o.PollInterval = DefaultOutputPollInterval
-  }
-  if o.PollTimeout == 0 {
-    o.PollTimeout = DefaultOutputPollTimeout
-  }
+	if o.relativePath, err = filepath.Rel(shp, fp); err != nil {
+		return
+	}
 
-  shp := pathPrefix.ReplaceAllString(strings.ToLower(strings.ReplaceAll(o.SharePath, `\`, "/")), "")
-  fp := pathPrefix.ReplaceAllString(strings.ToLower(strings.ReplaceAll(o.File, `\`, "/")), "")
+	log.Info().Str("path", o.relativePath).Msg("Fetching output file")
 
-  if o.relativePath, err = filepath.Rel(shp, fp); err != nil {
-    return
-  }
+	if o.ForceReconnect || !o.Client.connected {
+		err = o.Client.Connect(ctx)
+		if err != nil {
+			return
+		}
+		defer o.AddCleaners(o.Client.Close)
+	}
 
-  log.Info().Str("path", o.relativePath).Msg("Fetching output file")
+	if o.ForceReconnect || o.Client.share != o.Share {
+		err = o.Client.Mount(ctx, o.Share)
+		if err != nil {
+			return
+		}
+	}
 
-  if o.ForceReconnect || !o.Client.connected {
-    err = o.Client.Connect(ctx)
-    if err != nil {
-      return
-    }
-    defer o.AddCleaners(o.Client.Close)
-  }
+	stopAt := time.Now().Add(timeout)
+	var reader io.ReadCloser
 
-  if o.ForceReconnect || o.Client.share != o.Share {
-    err = o.Client.Mount(ctx, o.Share)
-    if err != nil {
-      return
-    }
-  }
+	for {
+		if time.Now().After(stopAt) {
+			return errors.New("execution output timeout")
+		}
+		if reader, err = o.Client.mount.OpenFile(o.relativePath, os.O_RDWR, 0); err == nil {
+			break
+		}
+		time.Sleep(pollInterval)
+	}
 
-  stopAt := time.Now().Add(o.PollTimeout)
-  var reader io.ReadCloser
+	if _, err = io.Copy(writer, reader); err != nil {
+		return
+	}
 
-  for {
-    if time.Now().After(stopAt) {
-      return errors.New("execution output timeout")
-    }
-    if reader, err = o.Client.mount.OpenFile(o.relativePath, os.O_RDWR, 0); err == nil {
-      break
-    }
-    time.Sleep(o.PollInterval)
-  }
+	o.AddCleaners(func(_ context.Context) error { return reader.Close() })
 
-  if _, err = io.Copy(writer, reader); err != nil {
-    return
-  }
+	if o.DeleteOutputFile {
+		o.AddCleaners(func(_ context.Context) error {
+			return o.Client.mount.Remove(o.relativePath)
+		})
+	}
 
-  o.AddCleaners(func(_ context.Context) error { return reader.Close() })
-
-  if o.DeleteOutputFile {
-    o.AddCleaners(func(_ context.Context) error {
-      return o.Client.mount.Remove(o.relativePath)
-    })
-  }
-
-  return
+	return
 }

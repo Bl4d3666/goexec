@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 )
 
 type OutputProvider interface {
@@ -22,6 +23,7 @@ type ExecutionIO struct {
 type ExecutionOutput struct {
 	NoDelete   bool
 	RemotePath string
+	Timeout    time.Duration
 	Provider   OutputProvider
 	Writer     io.WriteCloser
 }
@@ -36,6 +38,7 @@ type ExecutionInput struct {
 
 func (execIO *ExecutionIO) GetOutput(ctx context.Context) (err error) {
 	if execIO.Output.Provider != nil {
+		ctx = context.WithValue(ctx, "output.timeout", execIO.Output.Timeout)
 		return execIO.Output.Provider.GetOutput(ctx, execIO.Output.Writer)
 	}
 	return nil

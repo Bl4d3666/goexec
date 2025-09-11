@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -57,8 +58,9 @@ func registerExecutionFlags(fs *pflag.FlagSet) {
 }
 
 func registerExecutionOutputFlags(fs *pflag.FlagSet) {
-	fs.StringVarP(&outputPath, "out", "o", "", `Fetch execution output to file or "-" for standard output`)
-	fs.StringVarP(&outputMethod, "out-method", "m", "smb", "Method to fetch execution output")
+	fs.StringVarP(&outputPath, "out", "o", "", "Fetch execution output to `file` or \"-\" for standard output")
+	fs.StringVarP(&outputMethod, "out-method", "m", "smb", "`Method` to fetch execution output")
+	fs.DurationVar(&exec.Output.Timeout, "out-timeout", time.Second*60, "Output timeout `duration`")
 	//fs.StringVar(&exec.Output.RemotePath, "out-remote", "", "Location to temporarily store output on remote filesystem")
 	fs.BoolVar(&exec.Output.NoDelete, "no-delete-out", false, "Preserve output file on remote filesystem")
 }
