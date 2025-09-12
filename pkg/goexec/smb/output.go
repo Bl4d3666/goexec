@@ -74,15 +74,22 @@ func (o *OutputFileFetcher) GetOutput(ctx context.Context, writer io.Writer) (er
   }
 
   if reader, err := func() (io.ReadCloser, error) {
+    timer := time.NewTimer(timeout)
+    defer timer.Stop()
+    poll := time.NewTicker(pollInterval)
+    defer poll.Stop()
+
     for {
       select {
       case <-ctx.Done():
         return nil, ctx.Err()
-      case <-time.After(timeout):
+      case <-timer.C:
         return nil, errors.New("execution output timeout")
-      case <-time.After(pollInterval):
-        if reader, err := o.Client.mount.OpenFile(o.relativePath, os.O_RDWR, 0); err == nil {
-          return reader, err
+      case <-poll.C:
+        // Open the remote file as RW; otherwise the output may be returned before the remote process exits
+        reader, err := o.Client.mount.OpenFile(o.relativePath, os.O_RDWR, 0)
+        if err == nil {
+          return reader, nil // success
         }
       }
     }
