@@ -14,7 +14,7 @@ To build this project from source, you will need Go version 1.23.* or greater an
 
 ```shell
 # Install goexec
-go install -ldflags="-s -w" github.com/FalconOpsLLC/goexec@latest
+CGO_ENABLED=0 go install -ldflags="-s -w" github.com/FalconOpsLLC/goexec@latest
 ```
 
 #### Manual Installation
