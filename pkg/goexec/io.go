@@ -9,15 +9,15 @@ import (
 )
 
 type OutputProvider interface {
-  GetOutput(ctx context.Context, writer io.Writer) (err error)
-  Clean(ctx context.Context) (err error)
+	GetOutput(ctx context.Context, writer io.Writer) (err error)
+	Clean(ctx context.Context) (err error)
 }
 
 type ExecutionIO struct {
-  Cleaner
+	Cleaner
 
-  Input  *ExecutionInput
-  Output *ExecutionOutput
+	Input  *ExecutionInput
+	Output *ExecutionOutput
 }
 
 type ExecutionOutput struct {
@@ -29,11 +29,11 @@ type ExecutionOutput struct {
 }
 
 type ExecutionInput struct {
-  StageFile      io.ReadCloser
-  Executable     string
-  ExecutablePath string
-  Arguments      string
-  Command        string
+	StageFile      io.ReadCloser
+	Executable     string
+	ExecutablePath string
+	Arguments      string
+	Command        string
 }
 
 func (execIO *ExecutionIO) GetOutput(ctx context.Context) (err error) {
@@ -45,31 +45,31 @@ func (execIO *ExecutionIO) GetOutput(ctx context.Context) (err error) {
 }
 
 func (execIO *ExecutionIO) Clean(ctx context.Context) (err error) {
-  if execIO.Output.Provider != nil {
-    return execIO.Output.Provider.Clean(ctx)
-  }
-  return nil
+	if execIO.Output.Provider != nil {
+		return execIO.Output.Provider.Clean(ctx)
+	}
+	return nil
 }
 
 func (execIO *ExecutionIO) CommandLine() (cmd []string) {
-  if execIO.Output.Provider != nil && execIO.Output.RemotePath != "" {
-    return []string{
-      `C:\Windows\System32\cmd.exe`,
-      fmt.Sprintf(`/C %s > %s 2>&1`, execIO.Input.String(), execIO.Output.RemotePath),
-    }
-  }
-  return execIO.Input.CommandLine()
+	if execIO.Output.Provider != nil && execIO.Output.RemotePath != "" {
+		return []string{
+			`C:\Windows\System32\cmd.exe`,
+			fmt.Sprintf(`/C %s > %s 2>&1`, execIO.Input.String(), execIO.Output.RemotePath),
+		}
+	}
+	return execIO.Input.CommandLine()
 }
 
 func (execIO *ExecutionIO) String() (str string) {
-  cmd := execIO.CommandLine()
-  // Ensure that executable paths are quoted
-  if strings.Contains(cmd[0], " ") {
-    str = fmt.Sprintf(`%q %s`, cmd[0], strings.Join(cmd[1:], " "))
-  } else {
-    str = strings.Join(cmd, " ")
-  }
-  return strings.Trim(str, " \t\n\r") // trim whitespace
+	cmd := execIO.CommandLine()
+	// Ensure that executable paths are quoted
+	if strings.Contains(cmd[0], " ") {
+		str = fmt.Sprintf(`%q %s`, cmd[0], strings.Join(cmd[1:], " "))
+	} else {
+		str = strings.Join(cmd, " ")
+	}
+	return strings.Trim(str, " \t\n\r") // trim whitespace
 }
 
 func (i *ExecutionInput) CommandLine() (cmd []string) {
@@ -89,12 +89,12 @@ func (i *ExecutionInput) CommandLine() (cmd []string) {
 }
 
 func (i *ExecutionInput) String() string {
-  return strings.Join(i.CommandLine(), " ")
+	return strings.Join(i.CommandLine(), " ")
 }
 
 func (i *ExecutionInput) Reader() (reader io.Reader) {
-  if i.StageFile != nil {
-    return i.StageFile
-  }
-  return strings.NewReader(i.String())
+	if i.StageFile != nil {
+		return i.StageFile
+	}
+	return strings.NewReader(i.String())
 }
