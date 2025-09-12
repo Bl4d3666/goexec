@@ -3,6 +3,7 @@ package goexec
 import (
   "context"
   "fmt"
+
   "github.com/rs/zerolog"
 )
 
@@ -115,12 +116,12 @@ func ExecuteCleanMethod(ctx context.Context, module CleanExecutionMethod, execIO
     log.Info().Msg("Collecting output")
 
     defer func() {
-      if cleanErr := execIO.Output.Provider.Clean(ctx); cleanErr != nil {
+      if cleanErr := execIO.Clean(ctx); cleanErr != nil {
         log.Debug().Err(cleanErr).Msg("Output provider cleanup failed")
       }
     }()
 
-    if err := execIO.Output.Provider.GetOutput(ctx, execIO.Output.Writer); err != nil {
+    if err := execIO.GetOutput(ctx); err != nil {
       log.Error().Err(err).Msg("Output collection failed")
       return fmt.Errorf("get output: %w", err)
     }

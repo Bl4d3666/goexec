@@ -1,10 +1,11 @@
 package goexec
 
 import (
-	"context"
-	"fmt"
-	"io"
-	"strings"
+  "context"
+  "fmt"
+  "io"
+  "strings"
+  "time"
 )
 
 type OutputProvider interface {
@@ -20,10 +21,11 @@ type ExecutionIO struct {
 }
 
 type ExecutionOutput struct {
-	NoDelete   bool
-	RemotePath string
-	Provider   OutputProvider
-	Writer     io.WriteCloser
+  NoDelete   bool
+  RemotePath string
+  Timeout    time.Duration
+  Provider   OutputProvider
+  Writer     io.WriteCloser
 }
 
 type ExecutionInput struct {
@@ -35,10 +37,11 @@ type ExecutionInput struct {
 }
 
 func (execIO *ExecutionIO) GetOutput(ctx context.Context) (err error) {
-	if execIO.Output.Provider != nil {
-		return execIO.Output.Provider.GetOutput(ctx, execIO.Output.Writer)
-	}
-	return nil
+  if execIO.Output.Provider != nil {
+    ctx = context.WithValue(ctx, ContextOptionOutputTimeout, execIO.Output.Timeout)
+    return execIO.Output.Provider.GetOutput(ctx, execIO.Output.Writer)
+  }
+  return nil
 }
 
 func (execIO *ExecutionIO) Clean(ctx context.Context) (err error) {
@@ -70,19 +73,19 @@ func (execIO *ExecutionIO) String() (str string) {
 }
 
 func (i *ExecutionInput) CommandLine() (cmd []string) {
-	cmd = make([]string, 2)
-	cmd[1] = i.Arguments
+  cmd = make([]string, 2)
+  cmd[1] = i.Arguments
 
-	switch {
-	case i.Command != "":
-		copy(cmd, strings.SplitN(i.Command, " ", 2))
-	case i.ExecutablePath != "":
-		cmd[0] = i.ExecutablePath
-	case i.Executable != "":
-		cmd[0] = i.Executable
-	}
+  switch {
+  case i.Command != "":
+    copy(cmd, strings.SplitN(i.Command, " ", 2))
+  case i.ExecutablePath != "":
+    cmd[0] = i.ExecutablePath
+  case i.Executable != "":
+    cmd[0] = i.Executable
+  }
 
-	return cmd
+  return cmd
 }
 
 func (i *ExecutionInput) String() string {

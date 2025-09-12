@@ -15,7 +15,7 @@ import (
 )
 
 var (
-  DefaultOutputPollInterval = 1 * time.Second
+  DefaultOutputPollInterval = 500 * time.Millisecond
   DefaultOutputPollTimeout  = 60 * time.Second
   pathPrefix                = regexp.MustCompile(`^([a-zA-Z]:)?[\\/]*`)
 )
@@ -30,23 +30,25 @@ type OutputFileFetcher struct {
   File             string
   DeleteOutputFile bool
   ForceReconnect   bool
-  PollInterval     time.Duration
-  PollTimeout      time.Duration
 
   relativePath string
 }
 
 func (o *OutputFileFetcher) GetOutput(ctx context.Context, writer io.Writer) (err error) {
-
   log := zerolog.Ctx(ctx)
+  timeout := DefaultOutputPollTimeout
+  pollInterval := DefaultOutputPollInterval
 
-  if o.PollInterval == 0 {
-    o.PollInterval = DefaultOutputPollInterval
+  if v := ctx.Value(goexec.ContextOptionOutputTimeout); v != nil {
+    if t, ok := v.(time.Duration); ok {
+      timeout = t
+    }
   }
-  if o.PollTimeout == 0 {
-    o.PollTimeout = DefaultOutputPollTimeout
+  if v := ctx.Value(goexec.ContextOptionOutputPollInterval); v != nil {
+    if p, ok := v.(time.Duration); ok {
+      pollInterval = p
+    }
   }
-
   shp := pathPrefix.ReplaceAllString(strings.ToLower(strings.ReplaceAll(o.SharePath, `\`, "/")), "")
   fp := pathPrefix.ReplaceAllString(strings.ToLower(strings.ReplaceAll(o.File, `\`, "/")), "")
 
@@ -71,29 +73,39 @@ func (o *OutputFileFetcher) GetOutput(ctx context.Context, writer io.Writer) (er
     }
   }
 
-  stopAt := time.Now().Add(o.PollTimeout)
-  var reader io.ReadCloser
+  if reader, err := func() (io.ReadCloser, error) {
+    timer := time.NewTimer(timeout)
+    defer timer.Stop()
+    poll := time.NewTicker(pollInterval)
+    defer poll.Stop()
 
-  for {
-    if time.Now().After(stopAt) {
-      return errors.New("execution output timeout")
+    for {
+      select {
+      case <-ctx.Done():
+        return nil, ctx.Err()
+      case <-timer.C:
+        return nil, errors.New("execution output timeout")
+      case <-poll.C:
+        // Open the remote file as RW; otherwise the output may be returned before the remote process exits
+        reader, err := o.Client.mount.OpenFile(o.relativePath, os.O_RDWR, 0)
+        if err == nil {
+          return reader, nil // success
+        }
+      }
     }
-    if reader, err = o.Client.mount.OpenFile(o.relativePath, os.O_RDWR, 0); err == nil {
-      break
-    }
-    time.Sleep(o.PollInterval)
-  }
-
-  if _, err = io.Copy(writer, reader); err != nil {
-    return
-  }
-
-  o.AddCleaners(func(_ context.Context) error { return reader.Close() })
-
-  if o.DeleteOutputFile {
+  }(); err != nil {
+    return err
+  } else {
     o.AddCleaners(func(_ context.Context) error {
-      return o.Client.mount.Remove(o.relativePath)
+      return reader.Close()
     })
+    if _, err := io.Copy(writer, reader); err != nil {
+      if o.DeleteOutputFile {
+        o.AddCleaners(func(_ context.Context) error {
+          return o.Client.mount.Remove(o.relativePath)
+        })
+      }
+    }
   }
 
   return

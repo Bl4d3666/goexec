@@ -1,14 +1,15 @@
 package cmd
 
 import (
-	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"os"
+  "context"
+  "encoding/json"
+  "errors"
+  "fmt"
+  "os"
+  "time"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
+  "github.com/spf13/cobra"
+  "github.com/spf13/pflag"
 )
 
 func registerLoggingFlags(fs *pflag.FlagSet) {
@@ -20,6 +21,23 @@ func registerLoggingFlags(fs *pflag.FlagSet) {
 }
 
 func registerNetworkFlags(fs *pflag.FlagSet) {
+  fs.StringVarP(&proxy, "proxy", "x", "", "Proxy `URI`")
+  fs.StringVarP(&rpcClient.Filter, "epm-filter", "F", "", "String `binding` to filter endpoints returned by the RPC endpoint mapper (EPM)")
+  fs.StringVar(&rpcClient.Endpoint, "endpoint", "", "Explicit RPC endpoint string `binding`")
+  fs.BoolVar(&rpcClient.NoEpm, "no-epm", false, "Don't use EPM to discover RPC endpoints")
+  fs.BoolVar(&rpcClient.UseEpm, "epm", false, "Use EPM to discover available bindings")
+  fs.BoolVar(&rpcClient.NoSign, "no-sign", false, "Disable signing on DCERPC messages")
+  fs.BoolVar(&rpcClient.NoSeal, "no-seal", false, "Disable packet stub encryption on DCERPC messages")
+
+  if err := fs.MarkHidden("no-epm"); err != nil {
+    panic(err)
+  }
+  if err := fs.MarkDeprecated("no-epm", "use --epm=false instead"); err != nil {
+    panic(err)
+  }
+
+  //cmd.MarkFlagsMutuallyExclusive("endpoint", "epm-filter")
+  //cmd.MarkFlagsMutuallyExclusive("no-epm", "epm-filter")
 	fs.StringVarP(&proxy, "proxy", "x", "", "Proxy `URI`")
 	fs.StringVarP(&rpcClient.Filter, "epm-filter", "F", "", "String binding to filter endpoints returned by the RPC endpoint mapper (EPM)")
 	fs.StringVar(&rpcClient.Endpoint, "endpoint", "", "Explicit RPC endpoint definition")
@@ -48,19 +66,20 @@ func registerStageFlags(fs *pflag.FlagSet) {
 */
 
 func registerExecutionFlags(fs *pflag.FlagSet) {
-	fs.StringVarP(&exec.Input.Executable, "exec", "e", "", "Remote Windows executable to invoke")
-	fs.StringVarP(&exec.Input.Arguments, "args", "a", "", "Process command line arguments")
-	fs.StringVarP(&exec.Input.Command, "command", "c", "", "Windows process command line (executable & arguments)")
+  fs.StringVarP(&exec.Input.Executable, "exec", "e", "", "Remote Windows `executable` to invoke")
+  fs.StringVarP(&exec.Input.Arguments, "args", "a", "", "Process command line arguments")
+  fs.StringVarP(&exec.Input.Command, "command", "c", "", "Windows process command line (executable & arguments)")
 
 	//cmd.MarkFlagsOneRequired("executable", "command")
 	//cmd.MarkFlagsMutuallyExclusive("executable", "command")
 }
 
 func registerExecutionOutputFlags(fs *pflag.FlagSet) {
-	fs.StringVarP(&outputPath, "out", "o", "", `Fetch execution output to file or "-" for standard output`)
-	fs.StringVarP(&outputMethod, "out-method", "m", "smb", "Method to fetch execution output")
-	//fs.StringVar(&exec.Output.RemotePath, "out-remote", "", "Location to temporarily store output on remote filesystem")
-	fs.BoolVar(&exec.Output.NoDelete, "no-delete-out", false, "Preserve output file on remote filesystem")
+  fs.StringVarP(&outputPath, "out", "o", "", "Fetch execution output to `file` or \"-\" for standard output")
+  fs.StringVarP(&outputMethod, "out-method", "m", "smb", "Method to fetch execution output")
+  fs.DurationVar(&exec.Output.Timeout, "out-timeout", time.Second*60, "Output timeout `duration`")
+  //fs.StringVar(&exec.Output.RemotePath, "out-remote", "", "Location to temporarily store output on remote filesystem")
+  fs.BoolVar(&exec.Output.NoDelete, "no-delete-out", false, "Preserve output file on remote filesystem")
 }
 
 func args(reqs ...func(*cobra.Command, []string) error) (fn func(*cobra.Command, []string) error) {
@@ -128,24 +147,24 @@ func argsSmbClient() func(cmd *cobra.Command, args []string) error {
 }
 
 func argsRpcClient(proto string, endpoint string) func(cmd *cobra.Command, args []string) error {
-	return args(
-		argsTarget(proto),
+  return args(
+    argsTarget(proto),
 
-		func(cmd *cobra.Command, args []string) (err error) {
-			switch {
-			case rpcClient.Endpoint != "":
-			case endpoint == "":
-				rpcClient.UseEpm = true
-			default:
-				rpcClient.Endpoint = endpoint
-			}
-			rpcClient.Target = target
-			rpcClient.Credential = credential
-			rpcClient.Proxy = proxy
+    func(cmd *cobra.Command, args []string) (err error) {
+      switch {
+      case rpcClient.Endpoint != "":
+      case endpoint == "":
+        rpcClient.UseEpm = true
+      default:
+        rpcClient.Endpoint = endpoint
+      }
+      rpcClient.Target = target
+      rpcClient.Credential = credential
+      rpcClient.Proxy = proxy
 
-			return rpcClient.Parse(context.TODO())
-		},
-	)
+      return rpcClient.Parse(context.TODO())
+    },
+  )
 }
 
 func argsOutput(methods ...string) func(cmd *cobra.Command, args []string) error {
