@@ -22,8 +22,8 @@ func registerLoggingFlags(fs *pflag.FlagSet) {
 
 func registerNetworkFlags(fs *pflag.FlagSet) {
   fs.StringVarP(&proxy, "proxy", "x", "", "Proxy `URI`")
-  fs.StringVarP(&rpcClient.Filter, "epm-filter", "F", "", "String binding to filter endpoints returned by the RPC endpoint mapper (EPM)")
-  fs.StringVar(&rpcClient.Endpoint, "endpoint", "", "Explicit RPC endpoint definition")
+  fs.StringVarP(&rpcClient.Filter, "epm-filter", "F", "", "String `binding` to filter endpoints returned by the RPC endpoint mapper (EPM)")
+  fs.StringVar(&rpcClient.Endpoint, "endpoint", "", "Explicit RPC endpoint string `binding`")
   fs.BoolVar(&rpcClient.NoEpm, "no-epm", false, "Don't use EPM to discover RPC endpoints")
   fs.BoolVar(&rpcClient.UseEpm, "epm", false, "Use EPM to discover available bindings")
   fs.BoolVar(&rpcClient.NoSign, "no-sign", false, "Disable signing on DCERPC messages")
@@ -49,7 +49,7 @@ func registerStageFlags(fs *pflag.FlagSet) {
 */
 
 func registerExecutionFlags(fs *pflag.FlagSet) {
-  fs.StringVarP(&exec.Input.Executable, "exec", "e", "", "Remote Windows executable to invoke")
+  fs.StringVarP(&exec.Input.Executable, "exec", "e", "", "Remote Windows `executable` to invoke")
   fs.StringVarP(&exec.Input.Arguments, "args", "a", "", "Process command line arguments")
   fs.StringVarP(&exec.Input.Command, "command", "c", "", "Windows process command line (executable & arguments)")
 
@@ -59,7 +59,7 @@ func registerExecutionFlags(fs *pflag.FlagSet) {
 
 func registerExecutionOutputFlags(fs *pflag.FlagSet) {
   fs.StringVarP(&outputPath, "out", "o", "", "Fetch execution output to `file` or \"-\" for standard output")
-  fs.StringVarP(&outputMethod, "out-method", "m", "smb", "`Method` to fetch execution output")
+  fs.StringVarP(&outputMethod, "out-method", "m", "smb", "Method to fetch execution output")
   fs.DurationVar(&exec.Output.Timeout, "out-timeout", time.Second*60, "Output timeout `duration`")
   //fs.StringVar(&exec.Output.RemotePath, "out-remote", "", "Location to temporarily store output on remote filesystem")
   fs.BoolVar(&exec.Output.NoDelete, "no-delete-out", false, "Preserve output file on remote filesystem")

