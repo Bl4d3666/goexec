@@ -2,6 +2,8 @@ module github.com/FalconOpsLLC/goexec
 
 go 1.24.1
 
+retract v0.2.1
+
 toolchain go1.24.4
 
 require (
