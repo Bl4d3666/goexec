@@ -3,28 +3,50 @@ package dcomexec
 import (
   "context"
   "fmt"
+  "strings"
+
   "github.com/oiweiwei/go-msrpc/dcerpc"
   "github.com/oiweiwei/go-msrpc/msrpc/dcom"
+  "github.com/oiweiwei/go-msrpc/msrpc/dcom/iobjectexporter/v0"
   "github.com/oiweiwei/go-msrpc/msrpc/dcom/oaut"
   "github.com/oiweiwei/go-msrpc/msrpc/dcom/oaut/idispatch/v0"
-  "strings"
 
   _ "github.com/oiweiwei/go-msrpc/msrpc/erref/ntstatus"
   _ "github.com/oiweiwei/go-msrpc/msrpc/erref/win32"
 )
 
-func callComMethod(ctx context.Context, dc idispatch.DispatchClient, id *dcom.IPID, method string, args ...*oaut.Variant) (ir *idispatch.InvokeResponse, err error) {
+// getCOMVersion uses IObjectExporter.ServerAlive2() to determine the COM version of the server.
+func getCOMVersion(ctx context.Context, cc dcerpc.Conn) (ver *dcom.COMVersion, err error) {
+  oe, err := iobjectexporter.NewObjectExporterClient(ctx, cc)
+  if err != nil {
+    return nil, err
+  }
+  srv, err := oe.ServerAlive2(ctx, &iobjectexporter.ServerAlive2Request{})
+  if err != nil {
+    return nil, err
+  }
+  return srv.COMVersion, nil
+}
 
+// callComMethod calls a COM method on a remote object using the IDispatch interface.
+//
+// The method is specified as a dot-separated string, e.g. "ShellWindows.Item" to call the Item method on the ShellWindows object.
+//
+// The method arguments are passed as *oaut.Variant.
+//
+// The method returns an *idispatch.InvokeResponse, which contains the result of the method call.
+//
+// The method will automatically follow the IDispatch interface to get the object specified in the method name, e.g. "ShellWindows.Item" will
+// automatically call "ShellWindows.Item.QueryInterface" to get the IDispatch interface of the object, then call "Item.Invoke" to call the method.
+func callComMethod(ctx context.Context, dc idispatch.DispatchClient, id *dcom.IPID, method string, args ...*oaut.Variant) (ir *idispatch.InvokeResponse, err error) {
   parts := strings.Split(method, ".")
 
   for i, obj := range parts {
-
     var opts []dcerpc.CallOption
 
     if id != nil {
       opts = append(opts, dcom.WithIPID(id))
     }
-
     gr, err := dc.GetIDsOfNames(ctx, &idispatch.GetIDsOfNamesRequest{
       This:     ORPCThis,
       IID:      &dcom.IID{},
@@ -48,7 +70,6 @@ func callComMethod(ctx context.Context, dc idispatch.DispatchClient, id *dcom.IP
 
       DispatchIDMember: gr.DispatchID[0],
     }
-
     if i >= len(parts)-1 {
       irq.Flags = 1
       irq.DispatchParams = &oaut.DispatchParams{ArgsCount: uint32(len(args)), Args: args}
@@ -70,6 +91,7 @@ func callComMethod(ctx context.Context, dc idispatch.DispatchClient, id *dcom.IP
   return
 }
 
+// stringToVariant converts a string to a *oaut.Variant.
 func stringToVariant(s string) *oaut.Variant {
   return &oaut.Variant{
     Size: 5,
