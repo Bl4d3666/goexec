@@ -40,12 +40,10 @@ func contextComVersion(ctx context.Context) *dcom.COMVersion {
       return &g
     }
   }
-  if v := ctx.Value(contextKeyGetComVersion); v != nil {
-    if g, ok := v.(bool); ok && !g {
-      return &dcom.COMVersion{
-        MajorVersion: contextDefaultComVersionMajor,
-        MinorVersion: contextDefaultComVersionMinor,
-      }
+  if !contextGetComVersion(ctx) {
+    return &dcom.COMVersion{
+      MajorVersion: contextDefaultComVersionMajor,
+      MinorVersion: contextDefaultComVersionMinor,
     }
   }
   return nil
