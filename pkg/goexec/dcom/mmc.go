@@ -14,7 +14,7 @@ import (
 )
 
 const (
-  MethodMmc = "MMC" // MMC20.Application::Document.ActiveView.ExecuteShellCommand
+  MethodMmc = "MMC20.Application" // MMC20.Application::Document.ActiveView.ExecuteShellCommand
   MmcUuid   = "49B2791A-B1AE-4C90-9B8E-E860BA07F889"
 )
 

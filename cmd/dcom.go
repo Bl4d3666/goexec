@@ -18,19 +18,23 @@ func dcomCmdInit() {
   dcomMmcCmdInit()
   dcomShellWindowsCmdInit()
   dcomShellBrowserWindowCmdInit()
+  dcomHtafileCmdInit()
 
   dcomCmd.PersistentFlags().AddFlagSet(defaultAuthFlags.Flags)
   dcomCmd.PersistentFlags().AddFlagSet(defaultLogFlags.Flags)
   dcomCmd.PersistentFlags().AddFlagSet(defaultNetRpcFlags.Flags)
-  dcomCmd.AddCommand(dcomMmcCmd, dcomShellWindowsCmd, dcomShellBrowserWindowCmd)
+  dcomCmd.AddCommand(
+    dcomMmcCmd,
+    dcomShellWindowsCmd,
+    dcomShellBrowserWindowCmd,
+    dcomHtafileCmd,
+  )
 }
 
 func dcomMmcCmdInit() {
   dcomMmcExecFlags := newFlagSet("Execution")
-
   registerExecutionFlags(dcomMmcExecFlags.Flags)
   registerExecutionOutputFlags(dcomMmcExecFlags.Flags)
-
   dcomMmcExecFlags.Flags.StringVar(&dcomMmc.WorkingDirectory, "directory", `C:\`, "Working `directory`")
   dcomMmcExecFlags.Flags.StringVar(&dcomMmc.WindowState, "window", "Minimized", "Window state")
 
@@ -48,11 +52,9 @@ func dcomMmcCmdInit() {
 
 func dcomShellWindowsCmdInit() {
   dcomShellWindowsExecFlags := newFlagSet("Execution")
-
   registerExecutionFlags(dcomShellWindowsExecFlags.Flags)
   registerExecutionOutputFlags(dcomShellWindowsExecFlags.Flags)
-
-  dcomShellWindowsExecFlags.Flags.StringVar(&dcomShellWindows.WorkingDirectory, "directory", `C:\`, "Working `directory`")
+  dcomShellWindowsExecFlags.Flags.StringVar(&dcomShellWindows.WorkingDirectory, "directory", `C:\`, "Working directory `path`")
   dcomShellWindowsExecFlags.Flags.StringVar(&dcomShellWindows.WindowState, "app-window", "0", "Application window state `ID`")
 
   cmdFlags[dcomShellWindowsCmd] = []*flagSet{
@@ -71,7 +73,7 @@ func dcomShellBrowserWindowCmdInit() {
   dcomShellBrowserWindowExecFlags := newFlagSet("Execution")
   registerExecutionFlags(dcomShellBrowserWindowExecFlags.Flags)
   registerExecutionOutputFlags(dcomShellBrowserWindowExecFlags.Flags)
-  dcomShellBrowserWindowExecFlags.Flags.StringVar(&dcomShellBrowserWindow.WorkingDirectory, "directory", `C:\`, "Working `directory`")
+  dcomShellBrowserWindowExecFlags.Flags.StringVar(&dcomShellBrowserWindow.WorkingDirectory, "directory", `C:\`, "Working directory `path`")
   dcomShellBrowserWindowExecFlags.Flags.StringVar(&dcomShellBrowserWindow.WindowState, "app-window", "0", "Application window state `ID`")
 
   cmdFlags[dcomShellBrowserWindowCmd] = []*flagSet{
@@ -86,10 +88,29 @@ func dcomShellBrowserWindowCmdInit() {
   dcomShellBrowserWindowCmd.MarkFlagsOneRequired("command", "exec")
 }
 
+func dcomHtafileCmdInit() {
+  dcomHtafileExecFlags := newFlagSet("Execution")
+  dcomHtafileExecFlags.Flags.StringVar(&dcomHtafile.Url, "url", "", "Load custom `URL`")
+  registerExecutionFlags(dcomHtafileExecFlags.Flags)
+  registerExecutionOutputFlags(dcomHtafileExecFlags.Flags)
+
+  cmdFlags[dcomHtafileCmd] = []*flagSet{
+    dcomHtafileExecFlags,
+    defaultAuthFlags,
+    defaultLogFlags,
+    defaultNetRpcFlags,
+  }
+  dcomHtafileCmd.Flags().AddFlagSet(dcomHtafileExecFlags.Flags)
+
+  // Constraints
+  dcomHtafileCmd.MarkFlagsOneRequired("command", "exec", "url")
+}
+
 var (
   dcomMmc                = dcomexec.DcomMmc{}
   dcomShellWindows       = dcomexec.DcomShellWindows{}
   dcomShellBrowserWindow = dcomexec.DcomShellBrowserWindow{}
+  dcomHtafile            = dcomexec.DcomHtafile{}
 
   dcomCmd = &cobra.Command{
     Use:   "dcom",
@@ -158,6 +179,29 @@ var (
         Logger().WithContext(gssapi.NewSecurityContext(context.Background()))
 
       if err := goexec.ExecuteCleanMethod(ctx, &dcomShellBrowserWindow, &exec); err != nil {
+        log.Fatal().Err(err).Msg("Operation failed")
+      }
+    },
+  }
+
+  dcomHtafileCmd = &cobra.Command{
+    Use:   "htafile [target]",
+    Short: "Execute with the HTAFile DCOM object",
+    Long: `Description:
+  The htafile method uses the exposed HTAFile DCOM object to load a remote HTA application or execute inline JScript.
+  This is made possible by the Load method of the IPersistMoniker interface.`,
+    Args: args(argsRpcClient("host", ""),
+      argsOutput("smb"),
+      func(*cobra.Command, []string) error {
+        return dcomexec.CheckUrlLength(dcomHtafile.Url, &exec)
+      },
+    ),
+    Run: func(cmd *cobra.Command, args []string) {
+      dcomHtafile.Client = &rpcClient
+      ctx := log.With().Str("module", dcomexec.ModuleName).Str("method", dcomexec.MethodHtafile).
+        Logger().WithContext(gssapi.NewSecurityContext(context.Background()))
+
+      if err := goexec.ExecuteCleanMethod(ctx, &dcomHtafile, &exec); err != nil {
         log.Fatal().Err(err).Msg("Operation failed")
       }
     },
