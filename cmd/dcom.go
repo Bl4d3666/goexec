@@ -69,10 +69,8 @@ func dcomShellWindowsCmdInit() {
 
 func dcomShellBrowserWindowCmdInit() {
   dcomShellBrowserWindowExecFlags := newFlagSet("Execution")
-
   registerExecutionFlags(dcomShellBrowserWindowExecFlags.Flags)
   registerExecutionOutputFlags(dcomShellBrowserWindowExecFlags.Flags)
-
   dcomShellBrowserWindowExecFlags.Flags.StringVar(&dcomShellBrowserWindow.WorkingDirectory, "directory", `C:\`, "Working `directory`")
   dcomShellBrowserWindowExecFlags.Flags.StringVar(&dcomShellBrowserWindow.WindowState, "app-window", "0", "Application window state `ID`")
 
@@ -89,9 +87,9 @@ func dcomShellBrowserWindowCmdInit() {
 }
 
 var (
-  dcomMmc                dcomexec.DcomMmc
-  dcomShellWindows       dcomexec.DcomShellWindows
-  dcomShellBrowserWindow dcomexec.DcomShellBrowserWindow
+  dcomMmc                = dcomexec.DcomMmc{}
+  dcomShellWindows       = dcomexec.DcomShellWindows{}
+  dcomShellBrowserWindow = dcomexec.DcomShellBrowserWindow{}
 
   dcomCmd = &cobra.Command{
     Use:   "dcom",
@@ -108,19 +106,13 @@ var (
     Long: `Description:
   The mmc method uses the exposed MMC20.Application object to call Document.ActiveView.ShellExec,
   and ultimately spawn a process on the remote host.`,
-    Args: args(
-      argsRpcClient("host", ""),
+    Args: args(argsRpcClient("host", ""),
       argsOutput("smb"),
       argsAcceptValues("window", &dcomMmc.WindowState, "Minimized", "Maximized", "Restored"),
     ),
     Run: func(cmd *cobra.Command, args []string) {
       dcomMmc.Client = &rpcClient
-      dcomMmc.IO = exec
-      dcomMmc.ClassID = dcomexec.Mmc20Uuid
-
-      ctx := log.With().
-        Str("module", dcomexec.ModuleName).
-        Str("method", dcomexec.MethodMmc).
+      ctx := log.With().Str("module", dcomexec.ModuleName).Str("method", dcomexec.MethodMmc).
         Logger().WithContext(gssapi.NewSecurityContext(context.Background()))
 
       if err := goexec.ExecuteCleanMethod(ctx, &dcomMmc, &exec); err != nil {
@@ -135,19 +127,13 @@ var (
     Long: `Description:
   The shellwindows method uses the exposed ShellWindows DCOM object on older Windows installations
   to call Item().Document.Application.ShellExecute, and spawn the provided process.`,
-    Args: args(
-      argsRpcClient("host", ""),
+    Args: args(argsRpcClient("host", ""),
       argsOutput("smb"),
       argsAcceptValues("app-window", &dcomShellWindows.WindowState, "0", "1", "2", "3", "4", "5", "7", "10"),
     ),
     Run: func(cmd *cobra.Command, args []string) {
       dcomShellWindows.Client = &rpcClient
-      dcomShellWindows.IO = exec
-      dcomShellWindows.ClassID = dcomexec.ShellWindowsUuid
-
-      ctx := log.With().
-        Str("module", dcomexec.ModuleName).
-        Str("method", dcomexec.MethodShellWindows).
+      ctx := log.With().Str("module", dcomexec.ModuleName).Str("method", dcomexec.MethodShellWindows).
         Logger().WithContext(gssapi.NewSecurityContext(context.Background()))
 
       if err := goexec.ExecuteCleanMethod(ctx, &dcomShellWindows, &exec); err != nil {
@@ -162,19 +148,13 @@ var (
     Long: `Description:
   The shellbrowserwindow method uses the exposed ShellBrowserWindow DCOM object on older Windows installations
   to call Document.Application.ShellExecute, and spawn the provided process.`,
-    Args: args(
-      argsRpcClient("host", ""),
+    Args: args(argsRpcClient("host", ""),
       argsOutput("smb"),
       argsAcceptValues("app-window", &dcomShellBrowserWindow.WindowState, "0", "1", "2", "3", "4", "5", "7", "10"),
     ),
     Run: func(cmd *cobra.Command, args []string) {
       dcomShellBrowserWindow.Client = &rpcClient
-      dcomShellBrowserWindow.IO = exec
-      dcomShellBrowserWindow.ClassID = dcomexec.ShellBrowserWindowUuid
-
-      ctx := log.With().
-        Str("module", dcomexec.ModuleName).
-        Str("method", dcomexec.MethodShellBrowserWindow).
+      ctx := log.With().Str("module", dcomexec.ModuleName).Str("method", dcomexec.MethodShellBrowserWindow).
         Logger().WithContext(gssapi.NewSecurityContext(context.Background()))
 
       if err := goexec.ExecuteCleanMethod(ctx, &dcomShellBrowserWindow, &exec); err != nil {

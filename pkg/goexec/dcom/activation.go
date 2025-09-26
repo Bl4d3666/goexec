@@ -4,7 +4,6 @@ import (
   "context"
   "fmt"
 
-  googleUUID "github.com/google/uuid"
   "github.com/oiweiwei/go-msrpc/dcerpc"
   "github.com/oiweiwei/go-msrpc/midl/uuid"
   "github.com/oiweiwei/go-msrpc/msrpc/dcom"
@@ -12,10 +11,18 @@ import (
   "github.com/oiweiwei/go-msrpc/msrpc/dcom/iremotescmactivator/v0"
   "github.com/oiweiwei/go-msrpc/msrpc/dtyp"
   "github.com/oiweiwei/go-msrpc/msrpc/erref/hresult"
+
+  _ "github.com/oiweiwei/go-msrpc/msrpc/erref/ntstatus"
+  _ "github.com/oiweiwei/go-msrpc/msrpc/erref/win32"
+)
+
+const (
+  OptRemoteCreateInstance = "RemoteCreateInstance"
+  OptRemoteActivation     = "RemoteActivation"
 )
 
 // remoteCreateInstance creates a new instance of a COM class on a remote machine using RemoteCreateInstance (opnum 4).
-func remoteCreateInstance(ctx context.Context, conn dcerpc.Conn, cls *uuid.UUID, iids []*dcom.IID) (opts []dcerpc.Option, err error) {
+func (m *Dcom) remoteCreateInstance(ctx context.Context, conn dcerpc.Conn, cls *uuid.UUID, iid *dcom.IID) (opts []dcerpc.Option, err error) {
   if cls == nil {
     return nil, fmt.Errorf("class ID is nil")
   }
@@ -24,8 +31,8 @@ func remoteCreateInstance(ctx context.Context, conn dcerpc.Conn, cls *uuid.UUID,
     Properties: []dcom.ActivationProperty{
       &dcom.InstantiationInfoData{
         ClassID:          (*dcom.ClassID)(dtyp.GUIDFromUUID(cls)),
-        IID:              iids,
-        ClientCOMVersion: ComVersion,
+        IID:              []*dcom.IID{iid},
+        ClientCOMVersion: m.comVersion,
       },
       &dcom.ActivationContextInfoData{},
       &dcom.LocationInfoData{},
@@ -45,10 +52,7 @@ func remoteCreateInstance(ctx context.Context, conn dcerpc.Conn, cls *uuid.UUID,
     return nil, err
   }
   cr, err := act.RemoteCreateInstance(ctx, &iremotescmactivator.RemoteCreateInstanceRequest{
-    ORPCThis: &dcom.ORPCThis{
-      Version: ComVersion,
-      CID:     (*dcom.CID)(dtyp.GUIDFromUUID(uuid.MustParse(googleUUID.NewString()))), // Random CID
-    },
+    ORPCThis:        &dcom.ORPCThis{Version: m.comVersion},
     ActPropertiesIn: apin,
   })
   if err != nil {
@@ -72,7 +76,7 @@ func remoteCreateInstance(ctx context.Context, conn dcerpc.Conn, cls *uuid.UUID,
 }
 
 // remoteActivation activates a COM class on a remote machine using RemoteActivation (opnum 0).
-func remoteActivation(ctx context.Context, conn dcerpc.Conn, cls *uuid.UUID, iids []*dcom.IID) (opts []dcerpc.Option, err error) {
+func (m *Dcom) remoteActivation(ctx context.Context, conn dcerpc.Conn, cls *uuid.UUID, iid *dcom.IID) (opts []dcerpc.Option, err error) {
   if cls == nil {
     return nil, fmt.Errorf("class ID is nil")
   }
@@ -80,15 +84,11 @@ func remoteActivation(ctx context.Context, conn dcerpc.Conn, cls *uuid.UUID, iid
   if err != nil {
     return nil, fmt.Errorf("init activation client: %w", err)
   }
-  cv, err := getCOMVersion(ctx, conn)
-  if err != nil {
-    return nil, fmt.Errorf("get COM version: %w", err)
-  }
   act, err := ac.RemoteActivation(ctx, &iactivation.RemoteActivationRequest{
-    ORPCThis:                   &dcom.ORPCThis{Version: cv},
+    ORPCThis:                   &dcom.ORPCThis{Version: m.comVersion},
     ClassID:                    dtyp.GUIDFromUUID(cls),
-    IIDs:                       iids,
-    RequestedProtocolSequences: []uint16{7, 15},
+    IIDs:                       []*dcom.IID{iid},
+    RequestedProtocolSequences: []uint16{7, 15}, // ncacn_ip_tcp, ncacn_np
   })
   if err != nil {
     return nil, fmt.Errorf("remote activation: %w", err)
