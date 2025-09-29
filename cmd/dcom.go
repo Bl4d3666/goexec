@@ -2,6 +2,9 @@ package cmd
 
 import (
   "context"
+  "fmt"
+  "io"
+  "os"
 
   "github.com/FalconOpsLLC/goexec/pkg/goexec"
   dcomexec "github.com/FalconOpsLLC/goexec/pkg/goexec/dcom"
@@ -19,6 +22,7 @@ func dcomCmdInit() {
   dcomShellWindowsCmdInit()
   dcomShellBrowserWindowCmdInit()
   dcomHtafileCmdInit()
+  dcomExcelXlmCmdInit()
 
   dcomCmd.PersistentFlags().AddFlagSet(defaultAuthFlags.Flags)
   dcomCmd.PersistentFlags().AddFlagSet(defaultLogFlags.Flags)
@@ -28,6 +32,7 @@ func dcomCmdInit() {
     dcomShellWindowsCmd,
     dcomShellBrowserWindowCmd,
     dcomHtafileCmd,
+    dcomExcelXlmCmd,
   )
 }
 
@@ -106,11 +111,32 @@ func dcomHtafileCmdInit() {
   dcomHtafileCmd.MarkFlagsOneRequired("command", "exec", "url")
 }
 
+func dcomExcelXlmCmdInit() {
+  dcomExcelXlmExecFlags := newFlagSet("Execution")
+  dcomExcelXlmExecFlags.Flags.StringVarP(&dcomExcelXlm.Macro, "macro", "M", "", "XLM macro")
+  dcomExcelXlmExecFlags.Flags.StringVar(&dcomExcelXlm.MacroFile, "macro-file", "", "XLM macro `file`")
+  registerExecutionFlags(dcomExcelXlmExecFlags.Flags)
+  registerExecutionOutputFlags(dcomExcelXlmExecFlags.Flags)
+
+  cmdFlags[dcomExcelXlmCmd] = []*flagSet{
+    dcomExcelXlmExecFlags,
+    defaultAuthFlags,
+    defaultLogFlags,
+    defaultNetRpcFlags,
+  }
+  dcomExcelXlmCmd.Flags().AddFlagSet(dcomExcelXlmExecFlags.Flags)
+
+  // Constraints
+  dcomExcelXlmCmd.MarkFlagsOneRequired("command", "exec", "macro", "macro-file")
+  dcomExcelXlmCmd.MarkFlagsMutuallyExclusive("macro", "macro-file", "out")
+}
+
 var (
   dcomMmc                = dcomexec.DcomMmc{}
   dcomShellWindows       = dcomexec.DcomShellWindows{}
   dcomShellBrowserWindow = dcomexec.DcomShellBrowserWindow{}
   dcomHtafile            = dcomexec.DcomHtafile{}
+  dcomExcelXlm           = dcomexec.DcomExcelXlm{}
 
   dcomCmd = &cobra.Command{
     Use:   "dcom",
@@ -118,7 +144,7 @@ var (
     Long: `Description:
   The dcom module uses exposed Distributed Component Object Model (DCOM) objects to spawn processes.`,
     GroupID: "module",
-    Args:    cobra.NoArgs,
+    Args:    cobra.ArbitraryArgs,
   }
 
   dcomMmcCmd = &cobra.Command{
@@ -188,7 +214,7 @@ var (
     Use:   "htafile [target]",
     Short: "Execute with the HTAFile DCOM object",
     Long: `Description:
-  The htafile method uses the exposed HTAFile DCOM object to load a remote HTA application or execute inline JScript.
+  The htafile method uses the exposed "HTML Application" DCOM object to load a remote HTA application or execute inline.
   This is made possible by the Load method of the IPersistMoniker interface.`,
     Args: args(argsRpcClient("host", ""),
       argsOutput("smb"),
@@ -202,6 +228,40 @@ var (
         Logger().WithContext(gssapi.NewSecurityContext(context.Background()))
 
       if err := goexec.ExecuteCleanMethod(ctx, &dcomHtafile, &exec); err != nil {
+        log.Fatal().Err(err).Msg("Operation failed")
+      }
+    },
+  }
+
+  dcomExcelXlmCmd = &cobra.Command{
+    Use:   "excel-xlm [target]",
+    Short: "Execute with the Excel.Application DCOM object using XLM macros",
+    Long: `Description:
+  The excel-xlm method uses the exposed Excel.Application DCOM object to call ExecuteExcel4Macro, thus executing
+  XLM macros at will.`,
+    Args: args(argsRpcClient("host", ""), argsOutput("smb"),
+      func(*cobra.Command, []string) error {
+        if dcomExcelXlm.MacroFile != "" {
+          f, err := os.Open(dcomExcelXlm.MacroFile)
+          if err != nil {
+            return fmt.Errorf("open macro file: %w", err)
+          }
+          defer func() { _ = f.Close() }()
+          b, err := io.ReadAll(f)
+          if err != nil {
+            return fmt.Errorf("read macro file: %w", err)
+          }
+          dcomExcelXlm.Macro = string(b)
+        }
+        return nil
+      },
+    ),
+    Run: func(cmd *cobra.Command, args []string) {
+      dcomExcelXlm.Client = &rpcClient
+      ctx := log.With().Str("module", dcomexec.ModuleName).Str("method", dcomexec.MethodExcelXlm).
+        Logger().WithContext(gssapi.NewSecurityContext(context.Background()))
+
+      if err := goexec.ExecuteCleanMethod(ctx, &dcomExcelXlm, &exec); err != nil {
         log.Fatal().Err(err).Msg("Operation failed")
       }
     },
