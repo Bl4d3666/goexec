@@ -197,6 +197,7 @@ The `dcom` module uses exposed Distributed Component Object Model (DCOM) objects
 
 > [!WARNING]
 > The DCOM module is generally less reliable than other modules because the underlying methods are often reliant on the target Windows version and specific Windows settings.
+> Kerberos auth is not officially supported by the DCOM module, but kudos if you can get it to work.
 
 ```text
 Usage:
