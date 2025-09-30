@@ -24,6 +24,7 @@ func dcomCmdInit() {
   dcomShellBrowserWindowCmdInit()
   dcomHtafileCmdInit()
   dcomExcelXlmCmdInit()
+  dcomVsDteCmdInit()
 
   dcomCmd.PersistentFlags().AddFlagSet(defaultAuthFlags.Flags)
   dcomCmd.PersistentFlags().AddFlagSet(defaultLogFlags.Flags)
@@ -34,6 +35,7 @@ func dcomCmdInit() {
     dcomShellBrowserWindowCmd,
     dcomHtafileCmd,
     dcomExcelXlmCmd,
+    dcomVsDteCmd,
   )
 }
 
@@ -134,12 +136,34 @@ func dcomExcelXlmCmdInit() {
   dcomExcelXlmCmd.MarkFlagsMutuallyExclusive("macro", "macro-file", "out")
 }
 
+func dcomVsDteCmdInit() {
+  dcomVsDteExecFlags := newFlagSet("Execution")
+  dcomVsDteExecFlags.Flags.StringVar(&dcomVisualStudioDte.CommandName, "vs-command", "", "Visual Studio DTE command to execute")
+  dcomVsDteExecFlags.Flags.StringVar(&dcomVisualStudioDte.CommandArgs, "vs-args", "", "Visual Studio DTE command arguments")
+  registerExecutionFlags(dcomVsDteExecFlags.Flags)
+  registerExecutionOutputFlags(dcomVsDteExecFlags.Flags)
+
+  cmdFlags[dcomVsDteCmd] = []*flagSet{
+    dcomVsDteExecFlags,
+    defaultAuthFlags,
+    defaultLogFlags,
+    defaultNetRpcFlags,
+  }
+  dcomVsDteCmd.Flags().AddFlagSet(dcomVsDteExecFlags.Flags)
+
+  // Constraints
+  dcomVsDteCmd.MarkFlagsOneRequired("command", "exec", "vs-command")
+  dcomVsDteCmd.MarkFlagsMutuallyExclusive("command", "exec", "vs-command")
+  dcomVsDteCmd.MarkFlagsMutuallyExclusive("vs-command", "out")
+}
+
 var (
   dcomMmc                = dcomexec.DcomMmc{}
   dcomShellWindows       = dcomexec.DcomShellWindows{}
   dcomShellBrowserWindow = dcomexec.DcomShellBrowserWindow{}
   dcomHtafile            = dcomexec.DcomHtafile{}
   dcomExcelXlm           = dcomexec.DcomExcelXlm{}
+  dcomVisualStudioDte    = dcomexec.DcomVisualStudioDte{}
 
   dcomCmd = &cobra.Command{
     Use:   "dcom",
@@ -243,7 +267,7 @@ var (
     Short: "Execute with the Excel.Application DCOM object using XLM macros",
     Long: `Description:
   The excel-xlm method uses the exposed Excel.Application DCOM object to call ExecuteExcel4Macro, thus executing
-  XLM macros at will.`,
+  XLM macros at will. This method requires that the remote host has Microsoft Excel installed.`,
     Args: args(argsRpcClient("host", ""), argsOutput("smb"),
       func(*cobra.Command, []string) error {
         if dcomExcelXlm.MacroFile != "" {
@@ -261,12 +285,30 @@ var (
         return nil
       },
     ),
-    Run: func(cmd *cobra.Command, args []string) {
+    Run: func(*cobra.Command, []string) {
       dcomExcelXlm.Client = &rpcClient
       ctx := log.With().Str("module", dcomexec.ModuleName).Str("method", dcomexec.MethodExcelXlm).
         Logger().WithContext(gssapi.NewSecurityContext(context.Background()))
 
       if err := goexec.ExecuteCleanMethod(ctx, &dcomExcelXlm, &exec); err != nil {
+        log.Fatal().Err(err).Msg("Operation failed")
+      }
+    },
+  }
+
+  dcomVsDteCmd = &cobra.Command{
+    Use:   "vs-dte [target]",
+    Short: "Execute with the VisualStudio.DTE object",
+    Long: `Description:
+  The vs-dte method uses the exposed VisualStudio.DTE object to spawn a process via the ExecuteCommand method.
+  This method requires that the remote host has Microsoft Visual Studio installed.`,
+    Args: args(argsRpcClient("host", ""), argsOutput("smb")),
+    Run: func(*cobra.Command, []string) {
+      dcomVisualStudioDte.Client = &rpcClient
+      ctx := log.With().Str("module", dcomexec.ModuleName).Str("method", dcomexec.MethodVisualStudioDTE).
+        Logger().WithContext(gssapi.NewSecurityContext(context.Background()))
+
+      if err := goexec.ExecuteCleanMethod(ctx, &dcomVisualStudioDte, &exec); err != nil {
         log.Fatal().Err(err).Msg("Operation failed")
       }
     },
