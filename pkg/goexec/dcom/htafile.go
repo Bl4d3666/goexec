@@ -50,8 +50,10 @@ const ( // See https://learn.microsoft.com/en-us/openspecs/office_file_formats/m
 
 type DcomHtafile struct {
   Dcom
-  Url string
-  ipm ipersistmoniker.PersistMonikerClient
+  Url        string
+  Vbscript   string
+  Javascript string
+  ipm        ipersistmoniker.PersistMonikerClient
 }
 
 // Init will initialize the ShellBrowserWindow instance
@@ -71,14 +73,11 @@ func (m *DcomHtafile) Init(ctx context.Context) (err error) {
 
 func (m *DcomHtafile) Execute(ctx context.Context, execIO *goexec.ExecutionIO) (err error) {
   log := zerolog.Ctx(ctx)
-  if m.Url == "" {
-    m.Url = fmt.Sprintf(`javascript:new ActiveXObject(%q).Run(%q)`, `WScript.Shell`, execIO.String())
-  }
   mon, err := getUrlMoniker(m.Url, 0)
   if err != nil {
     return fmt.Errorf("create url moniker structure: %w", err)
   }
-  log.Info().Str("URL", m.Url).Msg("calling Load method")
+  log.Info().Str("URL", m.Url).Msg("Loading URL moniker")
   lrs, err := m.ipm.Load(ctx, &ipersistmoniker.LoadRequest{
     This: &dcom.ORPCThis{Version: m.comVersion},
     Name: mon,
@@ -137,7 +136,6 @@ func getUrlMoniker(url string, flags uint32) (*urlmon.Moniker, error) {
       Value: &dcom.ObjectReference_Custom{
         Custom: &dcom.ObjectReferenceCustom{
           ClassID:    (*dcom.ClassID)(dtyp.GUIDFromUUID(uuid.MustParse(urlMonikerUuid))),
-          Size:       uint32(len(blob)), // TODO: Necessary?
           ObjectData: blob,
         },
       },
@@ -150,12 +148,19 @@ func getUrlMoniker(url string, flags uint32) (*urlmon.Moniker, error) {
   return &urlmon.Moniker{Data: dat}, nil
 }
 
-func CheckUrlLength(url string, execIO *goexec.ExecutionIO) (err error) {
-  if url == "" {
-    url = fmt.Sprintf(`javascript:new ActiveXObject(%q).Run(%q)`, `WScript.Shell`, execIO.String())
+func HtafileGetUrl(url, jscript, vbscript string, execIO *goexec.ExecutionIO) string {
+  switch {
+  case url != "":
+  case vbscript != "":
+    return "vbscript:" + vbscript
+  case jscript != "":
+    return "javascript:" + jscript
+  case execIO != nil:
+    return getVbscriptCmdExecUrl(execIO.String())
   }
-  if strings.HasPrefix(strings.ToLower(url), "javascript:") && len(url) > 508 {
-    return fmt.Errorf("URL length exceeds max (%d > 508)", len(url))
-  }
-  return nil
+  return url
+}
+
+func getVbscriptCmdExecUrl(cmd string) string {
+  return fmt.Sprintf(`vbscript:Close(CreateObject("WScript.Shell").Run("%s"))`, strings.ReplaceAll(cmd, `"`, `""`))
 }

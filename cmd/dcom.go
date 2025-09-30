@@ -5,6 +5,7 @@ import (
   "fmt"
   "io"
   "os"
+  "strings"
 
   "github.com/FalconOpsLLC/goexec/pkg/goexec"
   dcomexec "github.com/FalconOpsLLC/goexec/pkg/goexec/dcom"
@@ -95,7 +96,9 @@ func dcomShellBrowserWindowCmdInit() {
 
 func dcomHtafileCmdInit() {
   dcomHtafileExecFlags := newFlagSet("Execution")
-  dcomHtafileExecFlags.Flags.StringVar(&dcomHtafile.Url, "url", "", "Load custom `URL`")
+  dcomHtafileExecFlags.Flags.StringVarP(&dcomHtafile.Url, "url", "U", "", "Load custom `URL`")
+  dcomHtafileExecFlags.Flags.StringVar(&dcomHtafile.Javascript, "js", "", "Execute JavaScript one-liner")
+  dcomHtafileExecFlags.Flags.StringVar(&dcomHtafile.Vbscript, "vbs", "", "Execute VBScript one-liner")
   registerExecutionFlags(dcomHtafileExecFlags.Flags)
   registerExecutionOutputFlags(dcomHtafileExecFlags.Flags)
 
@@ -108,7 +111,7 @@ func dcomHtafileCmdInit() {
   dcomHtafileCmd.Flags().AddFlagSet(dcomHtafileExecFlags.Flags)
 
   // Constraints
-  dcomHtafileCmd.MarkFlagsOneRequired("command", "exec", "url")
+  dcomHtafileCmd.MarkFlagsOneRequired("command", "exec", "url", "js", "vbs")
 }
 
 func dcomExcelXlmCmdInit() {
@@ -216,20 +219,22 @@ var (
     Long: `Description:
   The htafile method uses the exposed "HTML Application" DCOM object to load a remote HTA application or execute inline.
   This is made possible by the Load method of the IPersistMoniker interface.`,
-    Args: args(argsRpcClient("host", ""),
-      argsOutput("smb"),
-      func(*cobra.Command, []string) error {
-        return dcomexec.CheckUrlLength(dcomHtafile.Url, &exec)
-      },
-    ),
-    Run: func(cmd *cobra.Command, args []string) {
+    Args: args(argsRpcClient("host", ""), argsOutput("smb")),
+    RunE: func(cmd *cobra.Command, args []string) error {
       dcomHtafile.Client = &rpcClient
+      dcomHtafile.Url = dcomexec.HtafileGetUrl(dcomHtafile.Url, dcomHtafile.Javascript, dcomHtafile.Vbscript, &exec)
+
+      if url := strings.ToLower(dcomHtafile.Url);
+        (strings.HasPrefix(url, "javascript:") || strings.HasPrefix(url, "vbscript:")) && len(url) > 508 {
+        return fmt.Errorf("script URL exceeds maximum length supported by mshta.exe (%d > 508)", len(url))
+      }
       ctx := log.With().Str("module", dcomexec.ModuleName).Str("method", dcomexec.MethodHtafile).
         Logger().WithContext(gssapi.NewSecurityContext(context.Background()))
 
       if err := goexec.ExecuteCleanMethod(ctx, &dcomHtafile, &exec); err != nil {
         log.Fatal().Err(err).Msg("Operation failed")
       }
+      return nil
     },
   }
 
