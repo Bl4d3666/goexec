@@ -120,7 +120,7 @@ func dcomHtafileCmdInit() {
 
 func dcomExcelMacroCmdInit() {
   dcomExcelMacroExecFlags := newFlagSet("Execution")
-  dcomExcelMacroExecFlags.Flags.StringVarP(&dcomExcelMacro.Macro, "macro", "M", "", "XLM macro")
+  dcomExcelMacroExecFlags.Flags.StringArrayVarP(&dcomExcelMacro.Macros, "macro", "M", nil, "XLM macro `code`")
   dcomExcelMacroExecFlags.Flags.StringVar(&dcomExcelMacro.MacroFile, "macro-file", "", "XLM macro `file`")
   registerExecutionFlags(dcomExcelMacroExecFlags.Flags)
   registerExecutionOutputFlags(dcomExcelMacroExecFlags.Flags)
@@ -135,6 +135,7 @@ func dcomExcelMacroCmdInit() {
 
   // Constraints
   dcomExcelMacroCmd.MarkFlagsOneRequired("command", "exec", "macro", "macro-file")
+  dcomExcelMacroCmd.MarkFlagsMutuallyExclusive("command", "exec", "macro", "macro-file")
   dcomExcelMacroCmd.MarkFlagsMutuallyExclusive("macro", "macro-file", "out")
 }
 
@@ -283,10 +284,10 @@ var (
   }
 
   dcomExcelMacroCmd = &cobra.Command{
-    Use:   "excel-xlm [target]",
+    Use:   "excel-macro [target]",
     Short: "Execute with the Excel.Application DCOM object by executing an Excel macro",
     Long: `Description:
-  The excel-xlm method uses the exposed Excel.Application DCOM object to call ExecuteExcel4Macro, thus executing
+  The excel-macro method uses the exposed Excel.Application DCOM object to call ExecuteExcel4Macro, thus executing
   XLM macros at will. This method requires that the remote host has Microsoft Excel installed.`,
     Args: args(argsRpcClient("host", ""), argsOutput("smb"),
       func(*cobra.Command, []string) error {
@@ -300,7 +301,7 @@ var (
           if err != nil {
             return fmt.Errorf("read macro file: %w", err)
           }
-          dcomExcelMacro.Macro = string(b)
+          dcomExcelMacro.Macros = strings.Split(string(b), "\n")
         }
         return nil
       },
