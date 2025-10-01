@@ -23,8 +23,7 @@ func dcomCmdInit() {
   dcomShellWindowsCmdInit()
   dcomShellBrowserWindowCmdInit()
   dcomHtafileCmdInit()
-  dcomExcelMacroCmdInit()
-  dcomExcelXllCmdInit()
+  dcomExcelCmdInit()
   dcomVsDteCmdInit()
 
   dcomCmd.PersistentFlags().AddFlagSet(defaultAuthFlags.Flags)
@@ -35,8 +34,7 @@ func dcomCmdInit() {
     dcomShellWindowsCmd,
     dcomShellBrowserWindowCmd,
     dcomHtafileCmd,
-    dcomExcelMacroCmd,
-    dcomExcelXllCmd,
+    dcomExcelCmd,
     dcomVsDteCmd,
   )
 }
@@ -165,6 +163,20 @@ func dcomVsDteCmdInit() {
   dcomVsDteCmd.MarkFlagsMutuallyExclusive("vs-command", "out")
 }
 
+func dcomExcelCmdInit() {
+  dcomExcelCmd.PersistentFlags().AddFlagSet(defaultAuthFlags.Flags)
+  dcomExcelCmd.PersistentFlags().AddFlagSet(defaultLogFlags.Flags)
+  dcomExcelCmd.PersistentFlags().AddFlagSet(defaultNetRpcFlags.Flags)
+  cmdFlags[dcomExcelCmd] = []*flagSet{
+    defaultAuthFlags,
+    defaultLogFlags,
+    defaultNetRpcFlags,
+  }
+  dcomExcelMacroCmdInit()
+  dcomExcelXllCmdInit()
+  dcomExcelCmd.AddCommand(dcomExcelMacroCmd, dcomExcelXllCmd)
+}
+
 func dcomExcelXllCmdInit() {
   dcomExcelXllExecFlags := newFlagSet("Execution")
   dcomExcelXllExecFlags.Flags.StringVar(&dcomExcelXll.XllLocation, "xll", "", "XLL/DLL local or UNC `path`")
@@ -199,6 +211,13 @@ var (
   The dcom module uses exposed Distributed Component Object Model (DCOM) objects to spawn processes.`,
     GroupID: "module",
     Args:    cobra.ArbitraryArgs,
+  }
+
+  dcomExcelCmd = &cobra.Command{
+    Use:   "excel [method]",
+    Short: "Execute with the Excel.Application DCOM object",
+    Long: `Description:
+  The excel command uses the exposed Excel.Application DCOM object to gain remote execution using the specified method.`,
   }
 
   dcomMmcCmd = &cobra.Command{
@@ -289,10 +308,10 @@ var (
   }
 
   dcomExcelMacroCmd = &cobra.Command{
-    Use:   "excel-macro [target]",
-    Short: "Execute with the Excel.Application DCOM object by executing an Excel macro",
+    Use:   "macro [target]",
+    Short: "Execute using Excel 4.0 macros (XLM)",
     Long: `Description:
-  The excel-macro method uses the exposed Excel.Application DCOM object to call ExecuteExcel4Macro, thus executing
+  The macro method uses the exposed Excel.Application DCOM object to call ExecuteExcel4Macro, thus executing
   XLM macros at will. This method requires that the remote host has Microsoft Excel installed.`,
     Args: args(argsRpcClient("host", ""), argsOutput("smb"),
       func(*cobra.Command, []string) error {
@@ -323,10 +342,10 @@ var (
   }
 
   dcomExcelXllCmd = &cobra.Command{
-    Use:   "excel-xll [target]",
-    Short: "Execute with the Excel.Application DCOM object by registering an XLL add-in",
+    Use:   "xll [target]",
+    Short: "Execute by Loading an XLL add-in",
     Long: `Description:
-  The excel-xll method uses the exposed Excel.Application DCOM object to call RegisterXLL, thus loading a XLL/DLL.
+  The xll method uses the exposed Excel.Application DCOM object to call RegisterXLL, thus loading a XLL/DLL.
   The XLL location (--xll) can be a path on the remote filesystem or an UNC path. This method requires that the
   remote host has Microsoft Excel installed.`,
     Args: args(argsRpcClient("host", "")),
