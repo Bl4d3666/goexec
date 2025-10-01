@@ -423,9 +423,51 @@ goexec dcom excel-macro "$target" \
   -M 'CALL("user32","MessageBoxA","JJCCJ",1,"GoExec rules","bryan was here",0)'
 ```
 
+#### Visual Studio `ExecuteCommand` Method (`dcom vs-dte`)
+
+The `vs-dte` method uses the exposed `VisualStudio.DTE` object to spawn a process via the `ExecuteCommand` method.
+This method requires that the remote host has Microsoft Visual Studio installed.
+
+```text
+Usage:
+  goexec dcom vs-dte [target] [flags]
+
+Visual Studio:
+      --vs-command string   Visual Studio DTE command to execute
+      --vs-args string      Visual Studio DTE command arguments
+      --vs-2019             Target Visual Studio 2019
+
+Execution:
+  -e, --exec executable        Remote Windows executable to invoke
+  -a, --args string            Process command line arguments
+  -c, --command string         Windows process command line (executable & arguments)
+  -o, --out file               Fetch execution output to file or "-" for standard output
+  -m, --out-method string      Method to fetch execution output (default "smb")
+      --out-timeout duration   Output timeout duration (default 1m0s)
+      --no-delete-out          Preserve output file on remote filesystem
+```
+
+##### Examples
+
+```shell
+# Execute `sc query` (batch) + save output to services.txt
+goexec dcom vs-dte "$target" \
+  --user "${auth_user}@${domain}" \
+  --password "$auth_pass" \
+  --command 'sc query' -o services.txt
+
+# Execute `cmd.exe /c set` with output, target Visual Studio 2019
+goexec dcom vs-dte "$target" \
+  --user "${auth_user}@${domain}" \
+  --password "$auth_pass" \
+  --vs-2019 \
+  --exec 'cmd.exe' \
+  --args '/c set' -o-
+```
+
 #### (Auxiliary) Excel `RegisterXLL` Method (`dcom excel-xll`)
 
-The excel-xll method uses the exposed Excel.Application DCOM object to call RegisterXLL, thus loading a XLL/DLL from the remote filesystem or an UNC path.
+The `excel-xll` method uses the exposed Excel.Application DCOM object to call RegisterXLL, thus loading a XLL/DLL from the remote filesystem or an UNC path.
 This method requires that the remote host has Microsoft Excel installed.
 
 ```text
