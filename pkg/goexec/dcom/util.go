@@ -2,74 +2,45 @@ package dcomexec
 
 import (
   "context"
-  "fmt"
+
   "github.com/oiweiwei/go-msrpc/dcerpc"
   "github.com/oiweiwei/go-msrpc/msrpc/dcom"
+  "github.com/oiweiwei/go-msrpc/msrpc/dcom/iobjectexporter/v0"
   "github.com/oiweiwei/go-msrpc/msrpc/dcom/oaut"
-  "github.com/oiweiwei/go-msrpc/msrpc/dcom/oaut/idispatch/v0"
-  "strings"
-
   _ "github.com/oiweiwei/go-msrpc/msrpc/erref/ntstatus"
   _ "github.com/oiweiwei/go-msrpc/msrpc/erref/win32"
 )
 
-func callComMethod(ctx context.Context, dc idispatch.DispatchClient, id *dcom.IPID, method string, args ...*oaut.Variant) (ir *idispatch.InvokeResponse, err error) {
-
-  parts := strings.Split(method, ".")
-
-  for i, obj := range parts {
-
-    var opts []dcerpc.CallOption
-
-    if id != nil {
-      opts = append(opts, dcom.WithIPID(id))
-    }
-
-    gr, err := dc.GetIDsOfNames(ctx, &idispatch.GetIDsOfNamesRequest{
-      This:     ORPCThis,
-      IID:      &dcom.IID{},
-      LocaleID: LcEnglishUs,
-
-      Names: []string{obj + "\x00"},
-    }, opts...)
-
+// getComVersion uses IObjectExporter.ServerAlive2() to determine the COM version of the server.
+// If a COM version can be determined from the context, then IObjectExporter.ServerAlive2 will not be called
+func getComVersion(ctx context.Context, cc dcerpc.Conn) (ver *dcom.COMVersion, err error) {
+  cv := contextComVersion(ctx)
+  if cv == nil {
+    oe, err := iobjectexporter.NewObjectExporterClient(ctx, cc)
     if err != nil {
-      return nil, fmt.Errorf("get dispatch ID of name %q: %w", obj, err)
+      return nil, err
     }
-
-    if len(gr.DispatchID) < 1 {
-      return nil, fmt.Errorf("dispatch ID of name %q not found", obj)
-    }
-
-    irq := &idispatch.InvokeRequest{
-      This:     ORPCThis,
-      IID:      &dcom.IID{},
-      LocaleID: LcEnglishUs,
-
-      DispatchIDMember: gr.DispatchID[0],
-    }
-
-    if i >= len(parts)-1 {
-      irq.Flags = 1
-      irq.DispatchParams = &oaut.DispatchParams{ArgsCount: uint32(len(args)), Args: args}
-      return dc.Invoke(ctx, irq, opts...)
-    }
-    irq.Flags = 2
-
-    ir, err = dc.Invoke(ctx, irq, opts...)
+    srv, err := oe.ServerAlive2(ctx, &iobjectexporter.ServerAlive2Request{})
     if err != nil {
-      return nil, fmt.Errorf("get properties of object %q: %w", obj, err)
+      return nil, err
     }
+    return srv.COMVersion, nil
+  }
+  return cv, nil
+}
 
-    di, ok := ir.VarResult.VarUnion.GetValue().(*oaut.Dispatch)
-    if !ok {
-      return nil, fmt.Errorf("invalid dispatch object for %q", obj)
+// normalizeStringBindings removes the address/hostname from string bindings to prevent name resolution issues.
+func normalizeStringBindings(bindings []*dcom.StringBinding) (opts []dcerpc.Option) {
+  for _, b := range bindings {
+    if s, err := dcerpc.ParseStringBinding(b.String()); err == nil {
+      s.NetworkAddress = ""
+      opts = append(opts, dcerpc.WithEndpoint(s.String()))
     }
-    id = di.InterfacePointer().GetStandardObjectReference().Std.IPID
   }
   return
 }
 
+// stringToVariant converts a string to a *oaut.Variant.
 func stringToVariant(s string) *oaut.Variant {
   return &oaut.Variant{
     Size: 5,

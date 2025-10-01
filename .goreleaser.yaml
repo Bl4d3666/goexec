@@ -9,6 +9,8 @@ builds:
   - env:
       - CGO_ENABLED=0
     ldflags: -s -w
+    flags:
+      - -trimpath
     goos:
       - darwin
       - windows
@@ -16,10 +18,7 @@ builds:
     goarch:
       - amd64
       - arm64
-    
-    ignore:
-      - goos: windows
-        goarch: arm
+      - riscv64
 
 #upx:
 #   - enabled: true

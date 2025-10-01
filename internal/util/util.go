@@ -1,10 +1,11 @@
 package util
 
 import (
-  "github.com/google/uuid"
   "math/rand" // not crypto secure
   "regexp"
   "strings"
+
+  "github.com/google/uuid"
 )
 
 const randHostnameCharset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
@@ -22,6 +23,13 @@ func RandomHostname() (hostname string) {
       return
     }
   }
+}
+
+func Truncate(s string, n int) string {
+  if len(s) <= n {
+    return s
+  }
+  return s[:n] + "..."
 }
 
 func RandomWindowsTempFile() string {

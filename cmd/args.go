@@ -136,6 +136,7 @@ func argsRpcClient(proto string, endpoint string) func(cmd *cobra.Command, args 
     func(cmd *cobra.Command, args []string) (err error) {
       switch {
       case rpcClient.Endpoint != "":
+      case rpcClient.Filter != "":
       case endpoint == "":
         rpcClient.UseEpm = true
       default:
