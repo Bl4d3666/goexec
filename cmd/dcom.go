@@ -24,7 +24,7 @@ func dcomCmdInit() {
   dcomShellBrowserWindowCmdInit()
   dcomHtafileCmdInit()
   dcomExcelCmdInit()
-  dcomVsDteCmdInit()
+  dcomVisualStudioCmdInit()
 
   dcomCmd.PersistentFlags().AddFlagSet(defaultAuthFlags.Flags)
   dcomCmd.PersistentFlags().AddFlagSet(defaultLogFlags.Flags)
@@ -35,8 +35,29 @@ func dcomCmdInit() {
     dcomShellBrowserWindowCmd,
     dcomHtafileCmd,
     dcomExcelCmd,
-    dcomVsDteCmd,
+    dcomVisualStudioCmd,
   )
+}
+
+func dcomExcelCmdInit() {
+  cmdFlags[dcomExcelCmd] = []*flagSet{
+    defaultAuthFlags,
+    defaultLogFlags,
+    defaultNetRpcFlags,
+  }
+  dcomExcelMacroCmdInit()
+  dcomExcelXllCmdInit()
+  dcomExcelCmd.AddCommand(dcomExcelMacroCmd, dcomExcelXllCmd)
+}
+
+func dcomVisualStudioCmdInit() {
+  cmdFlags[dcomVisualStudioCmd] = []*flagSet{
+    defaultAuthFlags,
+    defaultLogFlags,
+    defaultNetRpcFlags,
+  }
+  dcomVisualStudioDteCmdInit()
+  dcomVisualStudioCmd.AddCommand(dcomVisualStudioDteCmd)
 }
 
 func dcomMmcCmdInit() {
@@ -137,44 +158,30 @@ func dcomExcelMacroCmdInit() {
   dcomExcelMacroCmd.MarkFlagsMutuallyExclusive("macro", "macro-file", "out")
 }
 
-func dcomVsDteCmdInit() {
-  dcomVsDteVsFlags := newFlagSet("Visual Studio")
-  dcomVsDteVsFlags.Flags.StringVar(&dcomVisualStudioDte.CommandName, "vs-command", "", "Visual Studio DTE command to execute")
-  dcomVsDteVsFlags.Flags.StringVar(&dcomVisualStudioDte.CommandArgs, "vs-args", "", "Visual Studio DTE command arguments")
-  dcomVsDteVsFlags.Flags.BoolVar(&dcomVisualStudioDte.Is2019, "vs-2019", false, "Target Visual Studio 2019")
+func dcomVisualStudioDteCmdInit() {
+  dcomVisualStudioDteVsFlags := newFlagSet("Visual Studio")
+  dcomVisualStudioDteVsFlags.Flags.BoolVar(&dcomVisualStudioDte.Is2019, "vs-2019", false, "Target Visual Studio 2019")
+  dcomVisualStudioDteVsFlags.Flags.StringVar(&dcomVisualStudioDte.CommandName, "vs-command", "", "Visual Studio DTE command to execute")
+  dcomVisualStudioDteVsFlags.Flags.StringVar(&dcomVisualStudioDte.CommandArgs, "vs-args", "", "Visual Studio DTE command arguments")
 
-  dcomVsDteExecFlags := newFlagSet("Execution")
-  registerExecutionFlags(dcomVsDteExecFlags.Flags)
-  registerExecutionOutputFlags(dcomVsDteExecFlags.Flags)
+  dcomVisualStudioDteExecFlags := newFlagSet("Execution")
+  registerExecutionFlags(dcomVisualStudioDteExecFlags.Flags)
+  registerExecutionOutputFlags(dcomVisualStudioDteExecFlags.Flags)
 
-  cmdFlags[dcomVsDteCmd] = []*flagSet{
-    dcomVsDteVsFlags,
-    dcomVsDteExecFlags,
+  cmdFlags[dcomVisualStudioDteCmd] = []*flagSet{
+    dcomVisualStudioDteVsFlags,
+    dcomVisualStudioDteExecFlags,
     defaultAuthFlags,
     defaultLogFlags,
     defaultNetRpcFlags,
   }
-  dcomVsDteCmd.Flags().AddFlagSet(dcomVsDteVsFlags.Flags)
-  dcomVsDteCmd.Flags().AddFlagSet(dcomVsDteExecFlags.Flags)
+  dcomVisualStudioDteCmd.Flags().AddFlagSet(dcomVisualStudioDteVsFlags.Flags)
+  dcomVisualStudioDteCmd.Flags().AddFlagSet(dcomVisualStudioDteExecFlags.Flags)
 
   // Constraints
-  dcomVsDteCmd.MarkFlagsOneRequired("command", "exec", "vs-command")
-  dcomVsDteCmd.MarkFlagsMutuallyExclusive("command", "exec", "vs-command")
-  dcomVsDteCmd.MarkFlagsMutuallyExclusive("vs-command", "out")
-}
-
-func dcomExcelCmdInit() {
-  dcomExcelCmd.PersistentFlags().AddFlagSet(defaultAuthFlags.Flags)
-  dcomExcelCmd.PersistentFlags().AddFlagSet(defaultLogFlags.Flags)
-  dcomExcelCmd.PersistentFlags().AddFlagSet(defaultNetRpcFlags.Flags)
-  cmdFlags[dcomExcelCmd] = []*flagSet{
-    defaultAuthFlags,
-    defaultLogFlags,
-    defaultNetRpcFlags,
-  }
-  dcomExcelMacroCmdInit()
-  dcomExcelXllCmdInit()
-  dcomExcelCmd.AddCommand(dcomExcelMacroCmd, dcomExcelXllCmd)
+  dcomVisualStudioDteCmd.MarkFlagsOneRequired("command", "exec", "vs-command")
+  dcomVisualStudioDteCmd.MarkFlagsMutuallyExclusive("command", "exec", "vs-command")
+  dcomVisualStudioDteCmd.MarkFlagsMutuallyExclusive("vs-command", "out")
 }
 
 func dcomExcelXllCmdInit() {
@@ -215,9 +222,16 @@ var (
 
   dcomExcelCmd = &cobra.Command{
     Use:   "excel [method]",
-    Short: "Execute with the Excel.Application DCOM object",
+    Short: "Execute with DCOM object(s) targeting Microsoft Excel",
     Long: `Description:
-  The excel command uses the exposed Excel.Application DCOM object to gain remote execution using the specified method.`,
+  Commands in the excel group use exposed Excel DCOM objects to gain remote execution`,
+  }
+
+  dcomVisualStudioCmd = &cobra.Command{
+    Use:   "visualstudio [method]",
+    Short: "Execute with DCOM object(s) targeting Microsoft Visual Studio",
+    Long: `Description:
+  Commands in the visualstudio group use exposed Visual Studio DCOM objects to gain remote execution`,
   }
 
   dcomMmcCmd = &cobra.Command{
@@ -360,12 +374,12 @@ var (
     },
   }
 
-  dcomVsDteCmd = &cobra.Command{
-    Use:   "vs-dte [target]",
+  dcomVisualStudioDteCmd = &cobra.Command{
+    Use:   "dte [target]",
     Short: "Execute with the VisualStudio.DTE object",
     Long: `Description:
-  The vs-dte method uses the exposed VisualStudio.DTE object to spawn a process via the ExecuteCommand method.
-  This method requires that the remote host has Microsoft Visual Studio installed.`,
+  The dte method uses the exposed VisualStudio.DTE object to spawn a process via the ExecuteCommand method. This method
+  requires that the remote host has Microsoft Visual Studio installed.`,
     Args: args(argsRpcClient("host", ""), argsOutput("smb")),
     Run: func(*cobra.Command, []string) {
       dcomVisualStudioDte.Client = &rpcClient
