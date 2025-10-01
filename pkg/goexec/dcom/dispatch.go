@@ -10,6 +10,7 @@ import (
   "github.com/oiweiwei/go-msrpc/msrpc/dcom"
   "github.com/oiweiwei/go-msrpc/msrpc/dcom/oaut"
   "github.com/oiweiwei/go-msrpc/msrpc/dcom/oaut/idispatch/v0"
+
   _ "github.com/oiweiwei/go-msrpc/msrpc/erref/hresult"
   _ "github.com/oiweiwei/go-msrpc/msrpc/erref/ntstatus"
   _ "github.com/oiweiwei/go-msrpc/msrpc/erref/win32"
@@ -63,10 +64,10 @@ func (m *Dispatch) callComMethod(ctx context.Context, id *dcom.IPID, method stri
       Names:    []string{obj},
     }, opts...)
     if err != nil {
-      return nil, fmt.Errorf("get dispatch ID of name %q: %w", obj, err)
+      return nil, fmt.Errorf("call %q: get dispatch ID of name %q: %w", method, obj, err)
     }
     if len(gr.DispatchID) < 1 {
-      return nil, fmt.Errorf("dispatch ID of name %q not found", obj)
+      return nil, fmt.Errorf("call %q: dispatch ID of name %q not found", method, obj)
     }
     irq := &idispatch.InvokeRequest{
       This:             &dcom.ORPCThis{Version: m.comVersion},
@@ -82,11 +83,11 @@ func (m *Dispatch) callComMethod(ctx context.Context, id *dcom.IPID, method stri
     irq.Flags = 2
     ir, err = m.dispatch.Invoke(ctx, irq, opts...)
     if err != nil {
-      return nil, fmt.Errorf("get properties of object %q: %w", obj, err)
+      return nil, fmt.Errorf("call %q: get properties of object %q: %w", method, obj, err)
     }
     di, ok := ir.VarResult.VarUnion.GetValue().(*oaut.Dispatch)
     if !ok {
-      return nil, fmt.Errorf("invalid dispatch object for %q", obj)
+      return nil, fmt.Errorf("call %q: invalid dispatch object for %q", method, obj)
     }
     id = di.InterfacePointer().GetStandardObjectReference().Std.IPID
   }
