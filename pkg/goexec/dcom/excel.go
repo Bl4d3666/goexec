@@ -72,7 +72,7 @@ func (m *DcomExcel) quit(ctx context.Context) (err error) {
 
 func (m *DcomExcelMacro) Execute(ctx context.Context, execIO *goexec.ExecutionIO) (err error) {
   log := zerolog.Ctx(ctx)
-  if m.Macros == nil || len(m.Macros) == 0 {
+  if len(m.Macros) == 0 {
     m.Macros = []string{fmt.Sprintf(`EXEC("%s")`, strings.ReplaceAll(execIO.String(), `"`, `""`))}
   }
   if !m.NoTerminate { // Terminate EXCEL.EXE via ExecuteExcel4Macro("QUIT()")
