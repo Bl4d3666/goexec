@@ -56,6 +56,7 @@ func (m *DcomVisualStudioDte) Execute(ctx context.Context, execIO *goexec.Execut
     q, err := m.callComMethod(ctx, nil, "Quit")
     if err != nil {
       log.Warn().Err(err).Msg("Call to Quit() failed")
+      return
     }
     zerolog.Ctx(ctx).Info().Int32("return", q.Return).Msg("Quit called")
   }()
