@@ -140,18 +140,23 @@ func dcomExcelMacroCmdInit() {
 }
 
 func dcomVsDteCmdInit() {
+  dcomVsDteVsFlags := newFlagSet("Visual Studio")
+  dcomVsDteVsFlags.Flags.StringVar(&dcomVisualStudioDte.CommandName, "vs-command", "", "Visual Studio DTE command to execute")
+  dcomVsDteVsFlags.Flags.StringVar(&dcomVisualStudioDte.CommandArgs, "vs-args", "", "Visual Studio DTE command arguments")
+  dcomVsDteVsFlags.Flags.BoolVar(&dcomVisualStudioDte.Is2019, "vs-2019", false, "Target Visual Studio 2019")
+
   dcomVsDteExecFlags := newFlagSet("Execution")
-  dcomVsDteExecFlags.Flags.StringVar(&dcomVisualStudioDte.CommandName, "vs-command", "", "Visual Studio DTE command to execute")
-  dcomVsDteExecFlags.Flags.StringVar(&dcomVisualStudioDte.CommandArgs, "vs-args", "", "Visual Studio DTE command arguments")
   registerExecutionFlags(dcomVsDteExecFlags.Flags)
   registerExecutionOutputFlags(dcomVsDteExecFlags.Flags)
 
   cmdFlags[dcomVsDteCmd] = []*flagSet{
+    dcomVsDteVsFlags,
     dcomVsDteExecFlags,
     defaultAuthFlags,
     defaultLogFlags,
     defaultNetRpcFlags,
   }
+  dcomVsDteCmd.Flags().AddFlagSet(dcomVsDteVsFlags.Flags)
   dcomVsDteCmd.Flags().AddFlagSet(dcomVsDteExecFlags.Flags)
 
   // Constraints

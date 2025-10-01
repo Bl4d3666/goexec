@@ -18,12 +18,15 @@ import (
 )
 
 const (
-  MethodVisualStudioDTE = "VisualStudio.DTE:ExecuteCommand"
-  VisualStudioDteUuid   = "33ABD590-0400-4FEF-AF98-5F5A8A99CFC3"
+  MethodVisualStudioDTE   = "VisualStudio.DTE:ExecuteCommand"
+  VisualStudioDteUuid     = "33ABD590-0400-4FEF-AF98-5F5A8A99CFC3"
+  VisualStudioDte2019Uuid = "2E1517DA-87BF-4443-984A-D2BF18F5A908"
 )
 
 type DcomVisualStudioDte struct {
   Dispatch
+  // Is2019 indicates that the installation is Visual Studio 2019
+  Is2019 bool
   // CommandName is the name of the DTE command to invoke
   CommandName string
   // CommandArgs are the arguments to pass to the command
@@ -32,6 +35,9 @@ type DcomVisualStudioDte struct {
 
 func (m *DcomVisualStudioDte) Init(ctx context.Context) (err error) {
   if err = m.Dcom.Init(ctx); err == nil {
+    if m.Is2019 {
+      return m.getDispatch(ctx, uuid.MustParse(VisualStudioDte2019Uuid))
+    }
     return m.getDispatch(ctx, uuid.MustParse(VisualStudioDteUuid))
   }
   return
