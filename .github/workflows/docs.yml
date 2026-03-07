@@ -1,4 +1,19 @@
-name: docs.yml
+name: Docs
+
 on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
 
 jobs:
+  linkinator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: JustinBeckwith/linkinator-action@v2
+        with:
+          paths: README.md
